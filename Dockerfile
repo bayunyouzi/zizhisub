@@ -7,7 +7,7 @@
 # =============================================================================
 
 ARG NODE_IMAGE=node:22-alpine
-ARG GOLANG_IMAGE=golang:1.23-alpine
+ARG GOLANG_IMAGE=golang:1.24-alpine
 ARG ALPINE_IMAGE=alpine:3.21
 ARG POSTGRES_IMAGE=postgres:16-alpine
 ARG GOPROXY=https://goproxy.cn,direct
