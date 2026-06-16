@@ -14,11 +14,10 @@
         <template v-for="item in navItems" :key="item.path || item.label">
           <!-- Dropdown group -->
           <div v-if="item.children?.length" class="top-nav-dropdown" :class="{ 'top-nav-dropdown-open': openDropdown === item }">
-            <button
+              <button
               class="top-nav-link"
               :class="{ 'top-nav-link-active': isGroupActive(item) }"
-              @click="toggleDropdown(item)"
-              @mouseenter="hoverDropdown(item)"
+              @click.stop="toggleDropdown(item)"
             >
               <span>{{ item.label }}</span>
               <svg class="top-nav-chevron" :class="{ 'rotate-180': openDropdown === item }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
@@ -192,12 +191,6 @@ function toggleDropdown(item: any) {
   openDropdown.value = openDropdown.value === item ? null : item
 }
 
-function hoverDropdown(item: any) {
-  if (openDropdown.value && openDropdown.value !== item) {
-    openDropdown.value = item
-  }
-}
-
 function closeDropdown() {
   openDropdown.value = null
 }
@@ -223,36 +216,43 @@ async function handleLogout() {
   @apply glass;
   @apply border-b border-gray-200/40 dark:border-white/5;
   @apply shadow-glass-sm;
+  height: 3.5rem;
 }
 
 .top-nav-inner {
-  @apply mx-auto flex h-14 max-w-screen-2xl items-center gap-6 px-4 lg:px-8;
+  @apply mx-auto flex h-14 max-w-screen-2xl items-center gap-4 px-4 lg:px-8;
 }
 
 .top-nav-brand {
   @apply flex items-center gap-2.5 flex-shrink-0;
+  min-width: 0;
 }
 
 .top-nav-logo {
-  @apply h-8 w-8 overflow-hidden rounded-lg;
+  @apply h-8 w-8 overflow-hidden rounded-lg flex-shrink-0;
 }
 
 .top-nav-title {
   @apply hidden text-sm font-semibold text-gray-900 dark:text-white sm:block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .top-nav-items {
   @apply flex items-center gap-1 flex-1 overflow-x-auto;
-  mask-image: linear-gradient(to right, black 90%, transparent 100%);
+  -webkit-overflow-scrolling: touch;
 }
 
 .top-nav-link {
   @apply flex items-center gap-1 rounded-lg px-3 py-1.5;
   @apply text-sm font-medium text-gray-600 dark:text-gray-400;
-  @apply transition-all duration-200;
+  @apply transition-all duration-200 cursor-pointer;
   @apply hover:bg-gray-100/70 dark:hover:bg-white/10;
   @apply hover:text-gray-900 dark:hover:text-white;
   white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .top-nav-link-active {
@@ -262,6 +262,7 @@ async function handleLogout() {
 
 .top-nav-chevron {
   @apply h-3.5 w-3.5 opacity-50 transition-transform duration-200;
+  flex-shrink: 0;
 }
 
 .top-nav-chevron.rotate-180 {
