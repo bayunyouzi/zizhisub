@@ -181,7 +181,6 @@ const promptModelDefault = ref('gpt-5.5')
 // 参考图（文生图和图生图都支持，最多2张）
 const refFiles = ref<File[]>([])
 const refPreviews = ref<string[]>([])
-const dragging = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // GPT Image 2 支持的尺寸选项（已验证文档）
@@ -317,11 +316,6 @@ function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (input.files) addRefFiles(input.files)
   input.value = '' // 重置以允许重复选择同一文件
-}
-
-function onDrop(e: DragEvent) {
-  dragging.value = false
-  if (e.dataTransfer?.files) addRefFiles(e.dataTransfer.files)
 }
 
 function removeRef(idx: number) {
