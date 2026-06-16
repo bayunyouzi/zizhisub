@@ -277,7 +277,7 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":     fmt.Sprintf("免费生图次数已用完（每账号 %d 次）。可填写你自己的密钥继续生成，不受限。", d.freeLimit),
 				"used":      used,
-				"limit":     d.dailyLimit,
+				"limit":     d.freeLimit,
 				"remaining": 0,
 			})
 			return
@@ -358,7 +358,7 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":     fmt.Sprintf("免费生图次数已用完（每账号 %d 次，文生图与图生图共享）。可填写你自己的密钥继续。", d.freeLimit),
 				"used":      used,
-				"limit":     d.dailyLimit,
+				"limit":     d.freeLimit,
 				"remaining": 0,
 			})
 			return
