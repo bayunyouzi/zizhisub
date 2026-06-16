@@ -125,7 +125,6 @@
     </Teleport>
   </AppLayout>
 </template>
-</template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
