@@ -5,19 +5,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 主色调 - Teal/Cyan 青色系
+        // 主色调 - Apple Indigo 高级灰蓝系
         primary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
-          950: '#042f2e'
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
+          800: '#3730a3',
+          900: '#312e81',
+          950: '#1e1b4b'
         },
         // 辅助色 - 深蓝灰
         accent: {
@@ -71,8 +71,8 @@ export default {
         // Apple 风：柔和、多层、低透明度的阴影，营造细腻的浮起感
         glass: '0 8px 32px rgba(0, 0, 0, 0.06)',
         'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.04)',
-        glow: '0 0 24px rgba(20, 184, 166, 0.22)',
-        'glow-lg': '0 0 44px rgba(20, 184, 166, 0.3)',
+        glow: '0 0 24px rgba(99, 102, 241, 0.22)',
+        'glow-lg': '0 0 44px rgba(99, 102, 241, 0.3)',
         // 卡片：贴近 Apple 的轻盈层次，两层叠加更有质感
         card: '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04)',
         'card-hover': '0 2px 4px rgba(15, 23, 42, 0.05), 0 12px 32px rgba(15, 23, 42, 0.1)',
@@ -83,13 +83,13 @@ export default {
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #818cf8 0%, #4f46e5 100%)',
         'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
         'gradient-glass':
           'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%)',
         // 更克制、弥散的背景光晕，接近 Apple 的留白氛围
         'mesh-gradient':
-          'radial-gradient(at 30% 12%, rgba(20, 184, 166, 0.08) 0px, transparent 55%), radial-gradient(at 85% 0%, rgba(6, 182, 212, 0.06) 0px, transparent 50%), radial-gradient(at 10% 60%, rgba(20, 184, 166, 0.05) 0px, transparent 50%)'
+          'radial-gradient(at 30% 12%, rgba(99, 102, 241, 0.06) 0px, transparent 55%), radial-gradient(at 85% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%), radial-gradient(at 10% 60%, rgba(99, 102, 241, 0.04) 0px, transparent 50%)'
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
@@ -127,8 +127,8 @@ export default {
           '100%': { backgroundPosition: '200% 0' }
         },
         glow: {
-          '0%': { boxShadow: '0 0 20px rgba(20, 184, 166, 0.25)' },
-          '100%': { boxShadow: '0 0 30px rgba(20, 184, 166, 0.4)' }
+          '0%': { boxShadow: '0 0 20px rgba(99, 102, 241, 0.25)' },
+          '100%': { boxShadow: '0 0 30px rgba(99, 102, 241, 0.4)' }
         }
       },
       backdropBlur: {
