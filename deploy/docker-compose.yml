@@ -16,7 +16,15 @@ services:
   # Sub2API Application
   # ===========================================================================
   sub2api:
-    image: weishaw/sub2api:latest
+    # 默认：从本仓库源码构建（包含你对前端的所有修改）。
+    # 这样改了 frontend/ 源码后 `docker compose build` 就会生效。
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: sub2api:local
+    # 如需直接使用上游官方预构建镜像（不含你的本地修改），可注释掉上面的 build/image，
+    # 改用下面这行：
+    # image: weishaw/sub2api:latest
     container_name: sub2api
     restart: unless-stopped
     ulimits:

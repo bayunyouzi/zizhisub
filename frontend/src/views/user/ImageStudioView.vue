@@ -286,15 +286,29 @@
                 :key="i"
                 class="group relative overflow-hidden rounded-2xl border border-gray-100 dark:border-dark-700"
               >
-                <img :src="img" :alt="`result-${i}`" class="aspect-square w-full object-cover" />
-                <div class="absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button
-                    class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105"
-                    :title="t('common.download')"
-                    @click="download(img, i)"
-                  >
-                    <Icon name="download" size="sm" />
-                  </button>
+                <img
+                  :src="img"
+                  :alt="`result-${i}`"
+                  class="aspect-square w-full cursor-zoom-in object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                  @click="openLightbox(img)"
+                />
+                <div class="pointer-events-none absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div class="pointer-events-auto flex gap-2">
+                    <button
+                      class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105"
+                      title="放大查看"
+                      @click.stop="openLightbox(img)"
+                    >
+                      <Icon name="search" size="sm" />
+                    </button>
+                    <button
+                      class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105"
+                      :title="t('common.download')"
+                      @click.stop="download(img, i)"
+                    >
+                      <Icon name="download" size="sm" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -310,11 +324,36 @@
         </div>
       </div>
     </div>
+
+    <!-- Lightbox 图片放大查看 -->
+    <Teleport to="body">
+      <Transition name="lightbox-fade">
+        <div
+          v-if="lightboxSrc"
+          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          @click="closeLightbox"
+        >
+          <button
+            class="absolute right-5 top-5 rounded-full bg-white/10 p-3 text-white backdrop-blur transition-all hover:bg-white/20 hover:scale-110"
+            title="关闭"
+            @click.stop="closeLightbox"
+          >
+            <Icon name="x" size="md" />
+          </button>
+          <img
+            :src="lightboxSrc"
+            alt="preview"
+            class="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+            @click.stop
+          />
+        </div>
+      </Transition>
+    </Teleport>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -346,6 +385,18 @@ const quality = ref('auto')
 const count = ref(1)
 const images = ref<string[]>([])
 const loading = ref(false)
+
+// Lightbox 放大查看
+const lightboxSrc = ref<string | null>(null)
+function openLightbox(src: string) {
+  lightboxSrc.value = src
+}
+function closeLightbox() {
+  lightboxSrc.value = null
+}
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && lightboxSrc.value) closeLightbox()
+}
 
 // 后端下发的默认配置（默认模型、剩余次数等）
 const cfg = ref<AIStudioConfig | null>(null)
@@ -462,6 +513,11 @@ onMounted(async () => {
   } catch {
     if (!model.value) model.value = imageModelDefault.value
   }
+  window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
 })
 
 function triggerFileInput() {
@@ -609,3 +665,22 @@ async function download(src: string, index: number) {
   }
 }
 </script>
+
+<style scoped>
+.lightbox-fade-enter-active,
+.lightbox-fade-leave-active {
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lightbox-fade-enter-from,
+.lightbox-fade-leave-to {
+  opacity: 0;
+}
+.lightbox-fade-enter-active img,
+.lightbox-fade-leave-active img {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lightbox-fade-enter-from img,
+.lightbox-fade-leave-to img {
+  transform: scale(0.92);
+}
+</style>
