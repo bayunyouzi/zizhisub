@@ -1,17 +1,17 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-6xl">
+    <div class="mx-auto max-w-[1600px]">
       <!-- Page Header -->
-      <div class="mb-8">
+      <div class="mb-6">
         <div class="flex items-center gap-3">
-          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
             <Icon name="photo" size="lg" />
           </div>
           <div>
-            <h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+            <h1 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
               {{ t('aiStudio.image.title') }}
             </h1>
-            <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               {{ t('aiStudio.image.subtitle') }}
             </p>
           </div>
@@ -19,12 +19,12 @@
       </div>
 
       <!-- Mode Tabs -->
-      <div class="mb-6 inline-flex rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
+      <div class="mb-4 inline-flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
         <button
           v-for="m in modes"
           :key="m.value"
           type="button"
-          class="rounded-xl px-5 py-2 text-sm font-medium transition-all"
+          class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all"
           :class="mode === m.value
             ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -34,9 +34,9 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <!-- Control Panel -->
-        <div class="card card-body space-y-5 lg:col-span-2">
+      <div class="flex flex-col gap-5 lg:flex-row">
+        <!-- Control Panel - sidebar -->
+        <div class="card card-body w-full shrink-0 space-y-4 lg:w-80">
           <!-- 密钥来源：默认密钥(有每日限额) / 自己的密钥(不限) -->
           <div>
             <label class="input-label">{{ t('aiStudio.image.keyModeLabel') }}</label>
@@ -268,7 +268,7 @@
         </div>
 
         <!-- Result Panel -->
-        <div class="lg:col-span-3">
+        <div class="min-w-0 flex-1">
           <div class="card card-body min-h-[400px]">
             <!-- Loading skeleton -->
             <div v-if="loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -409,12 +409,16 @@ const refPreviews = ref<string[]>([])
 const dragging = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-// gpt-image-2 实际支持的尺寸（DALL-E 3 兼容）
-// 上游 API 不支持 4K/自定义分辨率，只接受标准尺寸
+// GPT Image 2 支持的尺寸选项（已验证文档）
+// 规则: 长边≤3840px, 宽高为16倍数, 比例≤3:1, 总像素655360~8294400
 const sizeOptions = [
   { value: '1024x1024', label: '1:1 正方形' },
-  { value: '1792x1024', label: '16:9 横屏' },
-  { value: '1024x1792', label: '9:16 竖屏' },
+  { value: '1536x1024', label: '3:2 横屏' },
+  { value: '1024x1536', label: '2:3 竖屏' },
+  { value: '2048x2048', label: '1:1 2K' },
+  { value: '2048x1152', label: '16:9 2K横屏' },
+  { value: '3840x2160', label: '16:9 4K横屏' },
+  { value: '2160x3840', label: '9:16 4K竖屏' },
 ]
 
 // 质量选项
