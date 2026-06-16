@@ -88,9 +88,11 @@
             <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('aiStudio.image.modelHint', { model: imageModelDefault }) }}</p>
           </div>
 
-          <!-- Reference image (img2img only) -->
-          <div v-if="mode === 'edit'">
-            <label class="input-label">{{ t('aiStudio.image.refImageLabel') }}</label>
+          <!-- 参考图（文生图和图生图都支持，最多2张） -->
+          <div>
+            <label class="input-label">
+              {{ mode === 'edit' ? t('aiStudio.image.refImageLabel') : '参考图（可选，最多2张）' }}
+            </label>
             <div
               class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 px-4 py-6 transition-colors hover:border-primary-400 dark:border-dark-600 dark:hover:border-primary-500"
               :class="{ 'border-primary-400 dark:border-primary-500': dragging }"
@@ -98,18 +100,36 @@
               @dragleave.prevent="dragging = false"
               @drop.prevent="onDrop"
             >
-              <template v-if="refPreview">
-                <img :src="refPreview" alt="reference" class="mb-3 max-h-40 rounded-xl object-contain" />
-                <button class="btn btn-ghost btn-sm" @click="clearRef">
-                  <Icon name="x" size="sm" /> {{ t('aiStudio.image.removeRef') }}
-                </button>
-              </template>
+              <!-- 已选图片预览 -->
+              <div v-if="refFiles.length > 0" class="w-full">
+                <div class="flex flex-wrap gap-3 justify-center mb-3">
+                  <div v-for="(f, idx) in refPreviews" :key="idx" class="relative">
+                    <img :src="f" :alt="`ref-${idx}`" class="h-28 rounded-xl object-contain" />
+                    <button
+                      class="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-0.5 shadow-md hover:bg-red-600 transition-colors"
+                      @click="removeRef(idx)"
+                    >
+                      <Icon name="x" size="sm" />
+                    </button>
+                  </div>
+                </div>
+                <div class="flex gap-2 justify-center">
+                  <button v-if="refFiles.length < 2" class="btn btn-ghost btn-sm" @click="triggerFileInput">
+                    <Icon name="plus" size="sm" /> 添加更多
+                  </button>
+                  <button class="btn btn-ghost btn-sm text-red-500" @click="clearAllRefs">
+                    <Icon name="x" size="sm" /> 清空全部
+                  </button>
+                </div>
+              </div>
+              <!-- 空状态 -->
               <template v-else>
                 <Icon name="photo" size="xl" class="mb-2 text-gray-300 dark:text-gray-600" />
                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('aiStudio.image.dropHint') }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">支持 JPG/PNG，最多 2 张</p>
                 <label class="btn btn-secondary btn-sm mt-3 cursor-pointer">
                   {{ t('aiStudio.image.selectFile') }}
-                  <input type="file" accept="image/*" class="hidden" @change="onFileChange" />
+                  <input ref="fileInputRef" type="file" accept="image/*" class="hidden" multiple @change="onFileChange" />
                 </label>
               </template>
             </div>
@@ -194,24 +214,45 @@
             ></textarea>
           </div>
 
-          <!-- Size + count -->
-          <div class="grid grid-cols-2 gap-3">
+          <!-- Size + Quality + Count -->
+          <div class="space-y-3">
             <div>
               <label class="input-label">{{ t('aiStudio.image.sizeLabel') }}</label>
-              <div class="relative">
-                <select v-model="size" class="input appearance-none pr-9">
-                  <option v-for="s in sizeOptions" :key="s" :value="s">{{ s }}</option>
-                </select>
-                <Icon name="chevronDown" size="sm" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="opt in sizeOptions"
+                  :key="opt.value"
+                  type="button"
+                  class="rounded-xl px-3 py-2 text-xs font-medium transition-all text-center"
+                  :class="size === opt.value
+                    ? 'bg-primary-500 text-white shadow-sm shadow-primary-500/30'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600'"
+                  @click="size = opt.value"
+                >
+                  <div>{{ opt.label }}</div>
+                  <div class="text-[10px] opacity-70">{{ opt.value }}</div>
+                </button>
               </div>
             </div>
-            <div>
-              <label class="input-label">{{ t('aiStudio.image.countLabel') }}</label>
-              <div class="relative">
-                <select v-model.number="count" class="input appearance-none pr-9">
-                  <option v-for="n in [1, 2, 3, 4]" :key="n" :value="n">{{ n }}</option>
-                </select>
-                <Icon name="chevronDown" size="sm" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="input-label">质量</label>
+                <div class="relative">
+                  <select v-model="quality" class="input appearance-none pr-9">
+                    <option v-for="q in qualityOptions" :key="q.value" :value="q.value">{{ q.label }}</option>
+                  </select>
+                  <Icon name="chevronDown" size="sm" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
+              </div>
+              <div>
+                <label class="input-label">{{ t('aiStudio.image.countLabel') }}</label>
+                <div class="relative">
+                  <select v-model.number="count" class="input appearance-none pr-9">
+                    <option v-for="n in [1, 2, 3, 4]" :key="n" :value="n">{{ n }}</option>
+                  </select>
+                  <Icon name="chevronDown" size="sm" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
               </div>
             </div>
           </div>
@@ -301,6 +342,7 @@ const selectedKey = ref('')
 const model = ref('')
 const prompt = ref('')
 const size = ref('1024x1024')
+const quality = ref('auto')
 const count = ref(1)
 const images = ref<string[]>([])
 const loading = ref(false)
@@ -310,12 +352,31 @@ const cfg = ref<AIStudioConfig | null>(null)
 const imageModelDefault = ref('gpt-image-2')
 const promptModelDefault = ref('gpt-5.5')
 
-// img2img reference
-const refFile = ref<File | null>(null)
-const refPreview = ref('')
+// 参考图（文生图和图生图都支持，最多2张）
+const refFiles = ref<File[]>([])
+const refPreviews = ref<string[]>([])
 const dragging = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 
-const sizeOptions = ['256x256', '512x512', '1024x1024', '1024x1792', '1792x1024']
+// gpt-image-2 支持的尺寸选项
+const sizeOptions = [
+  { value: '1024x1024', label: '1:1 正方形' },
+  { value: '1536x1024', label: '3:2 横屏' },
+  { value: '1024x1536', label: '2:3 竖屏' },
+  { value: '2048x2048', label: '1:1 2K' },
+  { value: '2048x1152', label: '16:9 2K横屏' },
+  { value: '1152x2048', label: '9:16 2K竖屏' },
+  { value: '3840x2160', label: '16:9 4K横屏' },
+  { value: '2160x3840', label: '9:16 4K竖屏' },
+]
+
+// 质量选项
+const qualityOptions = [
+  { value: 'auto', label: '自动' },
+  { value: 'low', label: '低（快速草稿）' },
+  { value: 'medium', label: '中（平衡）' },
+  { value: 'high', label: '高（最佳质量）' },
+]
 
 // ===== 内联 AI 提示词生成器状态 =====
 const showPromptHelper = ref(false)
@@ -380,10 +441,11 @@ const modes = computed(() => [
 ])
 
 const canGenerate = computed(() => {
-  if (!model.value || !prompt.value.trim()) return false
+  if (!prompt.value.trim()) return false
   // 用自己的密钥时必须先选一把
   if (keyMode.value === 'own' && !selectedKey.value) return false
-  if (mode.value === 'edit' && !refFile.value) return false
+  // 图生图模式必须有参考图
+  if (mode.value === 'edit' && refFiles.value.length === 0) return false
   return true
 })
 
@@ -395,36 +457,50 @@ onMounted(async () => {
     imageModelDefault.value = data.image_model || 'gpt-image-2'
     promptModelDefault.value = data.prompt_model || 'gpt-5.5'
     if (!model.value) model.value = imageModelDefault.value
-    // 没配默认生图密钥时，自动切到“用自己的密钥”
+    // 没配默认生图密钥时，自动切到"用自己的密钥"
     if (!data.has_image_key) keyMode.value = 'own'
   } catch {
     if (!model.value) model.value = imageModelDefault.value
   }
 })
 
-function setRefFile(file: File) {
-  refFile.value = file
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    refPreview.value = (e.target?.result as string) || ''
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+function addRefFiles(files: FileList | File[]) {
+  const newFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
+  const remaining = 2 - refFiles.value.length
+  const toAdd = newFiles.slice(0, remaining)
+  for (const f of toAdd) {
+    refFiles.value.push(f)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      refPreviews.value.push((e.target?.result as string) || '')
+    }
+    reader.readAsDataURL(f)
   }
-  reader.readAsDataURL(file)
 }
 
 function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) setRefFile(file)
+  const input = e.target as HTMLInputElement
+  if (input.files) addRefFiles(input.files)
+  input.value = '' // 重置以允许重复选择同一文件
 }
 
 function onDrop(e: DragEvent) {
   dragging.value = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file && file.type.startsWith('image/')) setRefFile(file)
+  if (e.dataTransfer?.files) addRefFiles(e.dataTransfer.files)
 }
 
-function clearRef() {
-  refFile.value = null
-  refPreview.value = ''
+function removeRef(idx: number) {
+  refFiles.value.splice(idx, 1)
+  refPreviews.value.splice(idx, 1)
+}
+
+function clearAllRefs() {
+  refFiles.value = []
+  refPreviews.value = []
 }
 
 /**
@@ -456,21 +532,36 @@ async function generate() {
   const userKey = keyMode.value === 'own' ? selectedKey.value : ''
   try {
     let result: AIStudioImage[]
-    if (mode.value === 'edit' && refFile.value) {
+    if (mode.value === 'edit' && refFiles.value.length > 0) {
+      // 图生图模式：使用参考图
       result = await editImageViaStudio({
         prompt: prompt.value.trim(),
-        image: refFile.value,
+        images: refFiles.value,
         model: model.value,
         n: count.value,
         size: size.value,
+        quality: quality.value,
+        userKey
+      })
+    } else if (refFiles.value.length > 0) {
+      // 文生图模式但有参考图：也走 edit 接口
+      result = await editImageViaStudio({
+        prompt: prompt.value.trim(),
+        images: refFiles.value,
+        model: model.value,
+        n: count.value,
+        size: size.value,
+        quality: quality.value,
         userKey
       })
     } else {
+      // 纯文生图
       result = await generateImageViaStudio({
         prompt: prompt.value.trim(),
         model: model.value,
         n: count.value,
         size: size.value,
+        quality: quality.value,
         userKey
       })
     }

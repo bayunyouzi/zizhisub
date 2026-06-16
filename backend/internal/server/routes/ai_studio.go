@@ -247,6 +247,7 @@ type aiStudioImageGenRequest struct {
 	Prompt   string `json:"prompt"`
 	Model    string `json:"model"`
 	Size     string `json:"size"`
+	Quality  string `json:"quality"`
 	N        int    `json:"n"`
 	UserKey  string `json:"user_key"`  // 用户自带密钥（可空）。非空=用自己的，不限额。
 }
@@ -298,6 +299,9 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 	if s := strings.TrimSpace(req.Size); s != "" {
 		payload["size"] = s
 	}
+	if q := strings.TrimSpace(req.Quality); q != "" {
+		payload["quality"] = q
+	}
 
 	status, body, err := d.forwardJSON(c.Request.Context(), "/images/generations", apiKey, payload)
 	if err != nil {
@@ -330,8 +334,14 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 	}
 	userKey := strings.TrimSpace(c.PostForm("user_key"))
 
-	fileHeader, err := c.FormFile("image")
+	// 支持多张参考图（OpenAI images/edits 支持多个 image 字段）
+	form, err := c.MultipartForm()
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误，请使用 multipart/form-data"})
+		return
+	}
+	fileHeaders := form.File["image"]
+	if len(fileHeaders) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少参考图"})
 		return
 	}
@@ -362,6 +372,7 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 	}
 	size := strings.TrimSpace(c.PostForm("size"))
 	n := strings.TrimSpace(c.PostForm("n"))
+	quality := strings.TrimSpace(c.PostForm("quality"))
 
 	// 重新组装 multipart 转发到 /v1/images/edits
 	var buf bytes.Buffer
@@ -374,25 +385,32 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 	if n != "" {
 		_ = mw.WriteField("n", n)
 	}
-	src, err := fileHeader.Open()
-	if err != nil {
-		if commit != nil {
-			commit()
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": "参考图读取失败"})
-		return
+	if quality != "" {
+		_ = mw.WriteField("quality", quality)
 	}
-	defer src.Close()
-	part, err := mw.CreateFormFile("image", fileHeader.Filename)
-	if err == nil {
-		_, err = io.Copy(part, src)
-	}
-	if err != nil {
-		if commit != nil {
-			commit()
+
+	// 写入所有参考图
+	for _, fh := range fileHeaders {
+		src, err := fh.Open()
+		if err != nil {
+			if commit != nil {
+				commit()
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": "参考图读取失败: " + fh.Filename})
+			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "参考图处理失败"})
-		return
+		part, err := mw.CreateFormFile("image", fh.Filename)
+		if err == nil {
+			_, err = io.Copy(part, src)
+		}
+		src.Close()
+		if err != nil {
+			if commit != nil {
+				commit()
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "参考图处理失败"})
+			return
+		}
 	}
 	_ = mw.Close()
 
