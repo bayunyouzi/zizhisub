@@ -409,16 +409,12 @@ const refPreviews = ref<string[]>([])
 const dragging = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-// gpt-image-2 支持的尺寸选项
+// gpt-image-2 实际支持的尺寸（DALL-E 3 兼容）
+// 上游 API 不支持 4K/自定义分辨率，只接受标准尺寸
 const sizeOptions = [
   { value: '1024x1024', label: '1:1 正方形' },
-  { value: '1536x1024', label: '3:2 横屏' },
-  { value: '1024x1536', label: '2:3 竖屏' },
-  { value: '2048x2048', label: '1:1 2K' },
-  { value: '2048x1152', label: '16:9 2K横屏' },
-  { value: '1152x2048', label: '9:16 2K竖屏' },
-  { value: '3840x2160', label: '16:9 4K横屏' },
-  { value: '2160x3840', label: '9:16 4K竖屏' },
+  { value: '1792x1024', label: '16:9 横屏' },
+  { value: '1024x1792', label: '9:16 竖屏' },
 ]
 
 // 质量选项
