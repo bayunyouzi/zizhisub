@@ -737,7 +737,7 @@ export default {
       keyModeLabel: '密钥来源',
       keyModeDefault: '默认密钥（免费额度）',
       keyModeOwn: '我自己的密钥',
-      quotaRemaining: '今日免费额度：剩余 {remaining} / {limit} 次（文生图与图生图共享）',
+      quotaRemaining: '免费额度：剩余 {remaining} / {limit} 次（终生，文生图与图生图共享）',
       quotaUnlimited: '管理员账号，无限使用',
       promptHelperHint: '由 {model} 生成绘图提示词，无需消耗生图额度',
       refImageLabel: '参考图',

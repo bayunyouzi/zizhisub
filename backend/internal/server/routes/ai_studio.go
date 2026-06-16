@@ -49,7 +49,7 @@ import (
 const (
 	aiStudioDefaultPromptModel = "gpt-5.5"
 	aiStudioDefaultImageModel  = "gpt-image-2"
-	aiStudioDefaultDailyLimit  = 10
+	aiStudioDefaultFreeLimit   = 10
 	// 站长邮箱：默认无限使用。也可通过 AI_STUDIO_ADMIN_EMAILS 覆盖/追加。
 	aiStudioBuiltinAdminEmail = "1585062016@qq.com"
 )
@@ -62,7 +62,7 @@ type aiStudioDeps struct {
 	imageKey    string
 	promptModel string
 	imageModel  string
-	dailyLimit  int
+	freeLimit   int // 每个账号终生免费次数（管理员无限）
 	gatewayBase string // 本机回环网关地址，如 http://127.0.0.1:8080/v1
 	httpClient  *http.Client
 }
@@ -99,10 +99,10 @@ func buildAIStudioDeps(redisClient *redis.Client, cfg *config.Config) *aiStudioD
 	if imageModel == "" {
 		imageModel = aiStudioDefaultImageModel
 	}
-	dailyLimit := aiStudioDefaultDailyLimit
-	if v := strings.TrimSpace(os.Getenv("AI_STUDIO_DAILY_LIMIT")); v != "" {
+	freeLimit := aiStudioDefaultFreeLimit
+	if v := strings.TrimSpace(os.Getenv("AI_STUDIO_FREE_LIMIT")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			dailyLimit = n
+			freeLimit = n
 		}
 	}
 
@@ -131,7 +131,7 @@ func buildAIStudioDeps(redisClient *redis.Client, cfg *config.Config) *aiStudioD
 		imageKey:    strings.TrimSpace(os.Getenv("AI_STUDIO_IMAGE_KEY")),
 		promptModel: promptModel,
 		imageModel:  imageModel,
-		dailyLimit:  dailyLimit,
+		freeLimit:   freeLimit,
 		gatewayBase: gatewayBase,
 		httpClient: &http.Client{
 			Timeout: 180 * time.Second,
@@ -147,8 +147,8 @@ func (d *aiStudioDeps) handleConfig(c *gin.Context) {
 	subject, _ := middleware.GetAuthSubjectFromContext(c)
 	isAdmin := d.isAdmin(c)
 
-	used := d.peekDailyImageUsage(c.Request.Context(), subject.UserID)
-	remaining := d.dailyLimit - used
+	used := d.peekImageUsage(c.Request.Context(), subject.UserID)
+	remaining := d.freeLimit - used
 	if remaining < 0 {
 		remaining = 0
 	}
@@ -158,9 +158,9 @@ func (d *aiStudioDeps) handleConfig(c *gin.Context) {
 		"image_model":           d.imageModel,
 		"has_prompt_key":        d.promptKey != "",
 		"has_image_key":         d.imageKey != "",
-		"daily_image_limit":     d.dailyLimit,
-		"daily_image_used":      used,
-		"daily_image_remaining": remaining,
+		"free_image_limit":      d.freeLimit,
+		"free_image_used":       used,
+		"free_image_remaining":  remaining,
 		"unlimited":             isAdmin,
 	})
 }
@@ -272,10 +272,10 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 	// 仅在使用系统默认密钥且非管理员时，做每日共享限额（先占坑）。
 	var commit func()
 	if usingDefault {
-		ok, used, release := d.consumeDailyImageQuota(c)
+		ok, used, release := d.consumeImageQuota(c)
 		if !ok {
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":     fmt.Sprintf("今日免费生图次数已用完（每天 %d 次）。可在下方填写你自己的密钥继续生成，不受限。", d.dailyLimit),
+				"error":     fmt.Sprintf("免费生图次数已用完（每账号 %d 次）。可填写你自己的密钥继续生成，不受限。", d.freeLimit),
 				"used":      used,
 				"limit":     d.dailyLimit,
 				"remaining": 0,
@@ -353,10 +353,10 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 
 	var commit func()
 	if usingDefault {
-		ok, used, release := d.consumeDailyImageQuota(c)
+		ok, used, release := d.consumeImageQuota(c)
 		if !ok {
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":     fmt.Sprintf("今日免费生图次数已用完（每天 %d 次，文生图与图生图共享）。可填写你自己的密钥继续。", d.dailyLimit),
+				"error":     fmt.Sprintf("免费生图次数已用完（每账号 %d 次，文生图与图生图共享）。可填写你自己的密钥继续。", d.freeLimit),
 				"used":      used,
 				"limit":     d.dailyLimit,
 				"remaining": 0,
@@ -455,10 +455,9 @@ func (d *aiStudioDeps) resolveImageKey(c *gin.Context, userKey string) (string, 
 	return d.imageKey, true, false
 }
 
-// dailyImageKey 当日生图计数键（按用户隔离，文生图+图生图共享）。
-func (d *aiStudioDeps) dailyImageKey(userID int64) string {
-	day := time.Now().In(d.location()).Format("20060102")
-	return fmt.Sprintf("ai_studio:img:%d:%s", userID, day)
+// imageUsageKey 终生生图计数键（按用户隔离，文生图+图生图共享，永不过期）。
+func (d *aiStudioDeps) imageUsageKey(userID int64) string {
+	return fmt.Sprintf("ai_studio:img:%d:lifetime", userID)
 }
 
 func (d *aiStudioDeps) location() *time.Location {
@@ -470,12 +469,12 @@ func (d *aiStudioDeps) location() *time.Location {
 	return time.Local
 }
 
-// peekDailyImageUsage 只读当日已用次数（不增加）。
-func (d *aiStudioDeps) peekDailyImageUsage(ctx context.Context, userID int64) int {
+// peekImageUsage 只读终生已用次数（不增加）。
+func (d *aiStudioDeps) peekImageUsage(ctx context.Context, userID int64) int {
 	if d.redis == nil || userID == 0 {
 		return 0
 	}
-	val, err := d.redis.Get(ctx, d.dailyImageKey(userID)).Int()
+	val, err := d.redis.Get(ctx, d.imageUsageKey(userID)).Int()
 	if err != nil {
 		return 0
 	}
@@ -485,36 +484,29 @@ func (d *aiStudioDeps) peekDailyImageUsage(ctx context.Context, userID int64) in
 	return val
 }
 
-// consumeDailyImageQuota 占用一次配额。
+// consumeImageQuota 占用一次终生配额。
 // 返回 (allowed, usedAfter, release)。release() 用于上游失败时回滚本次计数。
 // 管理员豁免：直接放行且不计数。
-func (d *aiStudioDeps) consumeDailyImageQuota(c *gin.Context) (bool, int, func()) {
+func (d *aiStudioDeps) consumeImageQuota(c *gin.Context) (bool, int, func()) {
 	if d.isAdmin(c) {
 		return true, 0, nil
 	}
 	subject, _ := middleware.GetAuthSubjectFromContext(c)
 	userID := subject.UserID
 	if d.redis == nil || userID == 0 {
-		// Redis 不可用时放行（fail-open），避免影响正常使用。
 		return true, 0, nil
 	}
 
 	ctx := c.Request.Context()
-	key := d.dailyImageKey(userID)
+	key := d.imageUsageKey(userID)
 
 	count, err := d.redis.Incr(ctx, key).Result()
 	if err != nil {
-		// 计数失败放行，不阻断业务。
 		return true, 0, nil
 	}
-	if count == 1 {
-		// 首次：设置到当日结束的 TTL。
-		d.redis.Expire(ctx, key, d.secondsUntilEndOfDay())
-	}
-	if int(count) > d.dailyLimit {
-		// 超限：回退本次自增，返回不允许。
+	if int(count) > d.freeLimit {
 		d.redis.Decr(ctx, key)
-		return false, d.dailyLimit, nil
+		return false, d.freeLimit, nil
 	}
 
 	release := func() {

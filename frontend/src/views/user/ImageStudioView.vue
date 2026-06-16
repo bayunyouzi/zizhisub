@@ -220,8 +220,8 @@ const stylePresets = computed(() => [
 ])
 
 // 每日限额展示
-const dailyLimit = computed(() => cfg.value?.daily_image_limit ?? 10)
-const remaining = computed(() => cfg.value?.daily_image_remaining ?? dailyLimit.value)
+const dailyLimit = computed(() => cfg.value?.free_image_limit ?? 10)
+const remaining = computed(() => cfg.value?.free_image_remaining ?? dailyLimit.value)
 const quotaHintClass = computed(() =>
   remaining.value <= 0 && !cfg.value?.unlimited
     ? 'text-red-500'

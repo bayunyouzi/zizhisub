@@ -21,9 +21,9 @@ export interface AIStudioConfig {
   image_model: string
   has_prompt_key: boolean
   has_image_key: boolean
-  daily_image_limit: number
-  daily_image_used: number
-  daily_image_remaining: number
+  free_image_limit: number
+  free_image_used: number
+  free_image_remaining: number
   unlimited: boolean
 }
 
