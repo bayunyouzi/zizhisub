@@ -3,19 +3,13 @@
     <!-- Background Decoration -->
     <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
 
-    <!-- Sidebar -->
-    <AppSidebar />
+    <!-- Top Navigation -->
+    <AppTopNav />
 
     <!-- Main Content Area -->
-    <div
-      class="relative min-h-screen transition-all duration-300"
-      :class="[sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64']"
-    >
-      <!-- Header -->
-      <AppHeader />
-
+    <div class="relative min-h-screen">
       <!-- Main Content -->
-      <main class="p-4 md:p-6 lg:p-8">
+      <main class="pt-14 p-4 md:p-6 lg:p-8">
         <slot />
       </main>
     </div>
@@ -29,12 +23,10 @@ import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
-import AppSidebar from './AppSidebar.vue'
-import AppHeader from './AppHeader.vue'
+import AppTopNav from './AppTopNav.vue'
 
-const appStore = useAppStore()
 const authStore = useAuthStore()
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
+useAppStore()
 const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 const { replayTour } = useOnboardingTour({
