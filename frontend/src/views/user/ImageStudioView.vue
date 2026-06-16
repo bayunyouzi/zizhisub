@@ -2,354 +2,129 @@
   <AppLayout>
     <div class="mx-auto max-w-[1600px]">
       <!-- Page Header -->
-      <div class="mb-6">
+      <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
-            <Icon name="photo" size="lg" />
-          </div>
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"><Icon name="photo" size="lg" /></div>
           <div>
-            <h1 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
-              {{ t('aiStudio.image.title') }}
-            </h1>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('aiStudio.image.subtitle') }}
-            </p>
+            <h1 class="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">{{ t('aiStudio.image.title') }}</h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('aiStudio.image.subtitle') }}</p>
           </div>
         </div>
+        <p v-if="keyMode === 'default'" class="text-xs" :class="quotaHintClass">
+          <template v-if="cfg?.unlimited">{{ t('aiStudio.image.quotaUnlimited') }}</template>
+          <template v-else>{{ t('aiStudio.image.quotaRemaining', { remaining, limit: dailyLimit }) }}</template>
+        </p>
       </div>
 
-      <!-- Mode Tabs -->
-      <div class="mb-4 inline-flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
-        <button
-          v-for="m in modes"
-          :key="m.value"
-          type="button"
-          class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all"
-          :class="mode === m.value
-            ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-          @click="mode = m.value"
-        >
-          {{ m.label }}
-        </button>
-      </div>
-
-      <div class="flex flex-col gap-5 lg:flex-row">
-        <!-- Control Panel - sidebar -->
-        <div class="card card-body w-full shrink-0 space-y-4 lg:w-80">
-          <!-- 密钥来源：默认密钥(有每日限额) / 自己的密钥(不限) -->
-          <div>
-            <label class="input-label">{{ t('aiStudio.image.keyModeLabel') }}</label>
-            <div class="inline-flex w-full rounded-2xl bg-gray-100 p-1 dark:bg-dark-800">
-              <button
-                type="button"
-                class="flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-all"
-                :class="keyMode === 'default'
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-                @click="keyMode = 'default'"
-              >
-                {{ t('aiStudio.image.keyModeDefault') }}
-              </button>
-              <button
-                type="button"
-                class="flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-all"
-                :class="keyMode === 'own'
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
-                @click="keyMode = 'own'"
-              >
-                {{ t('aiStudio.image.keyModeOwn') }}
-              </button>
-            </div>
-
-            <!-- 默认密钥：剩余次数提示 -->
-            <p v-if="keyMode === 'default'" class="mt-2 text-xs" :class="quotaHintClass">
-              <template v-if="cfg?.unlimited">{{ t('aiStudio.image.quotaUnlimited') }}</template>
-              <template v-else>
-                {{ t('aiStudio.image.quotaRemaining', { remaining: remaining, limit: dailyLimit }) }}
-              </template>
-            </p>
-
-            <!-- 自己的密钥：选择已创建的 key -->
-            <div v-else class="mt-3">
-              <KeySelector v-model="selectedKey" :label="t('aiStudio.keySelector.label')" />
-            </div>
+      <!-- Control Bar -->
+      <div class="card card-body mb-5 space-y-3">
+        <!-- Row 1: Mode + Key + Model -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
+            <button v-for="m in modes" :key="m.value" type="button" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all"
+              :class="mode === m.value ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'" @click="mode = m.value">{{ m.label }}</button>
           </div>
-
-          <div>
-            <label class="input-label">{{ t('aiStudio.image.modelLabel') }}</label>
-            <input
-              v-model="model"
-              type="text"
-              :placeholder="t('aiStudio.image.modelPlaceholder')"
-              class="input"
-            />
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('aiStudio.image.modelHint', { model: imageModelDefault }) }}</p>
+          <div class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
+            <button type="button" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all"
+              :class="keyMode === 'default' ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-gray-500'" @click="keyMode = 'default'">系统密钥</button>
+            <button type="button" class="rounded-md px-3 py-1.5 text-xs font-medium transition-all"
+              :class="keyMode === 'own' ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white' : 'text-gray-500'" @click="keyMode = 'own'">自备密钥</button>
           </div>
+          <input v-model="model" type="text" :placeholder="'模型 (默认: '+imageModelDefault+')'" class="input w-40 text-sm" />
+          <KeySelector v-if="keyMode === 'own'" v-model="selectedKey" class="w-40" />
+        </div>
 
-          <!-- 参考图（文生图和图生图都支持，最多2张） -->
-          <div>
-            <label class="input-label">
-              {{ mode === 'edit' ? t('aiStudio.image.refImageLabel') : '参考图（可选，最多2张）' }}
+        <!-- Row 2: Prompt -->
+        <div>
+          <textarea v-model="prompt" rows="3" :placeholder="t('aiStudio.image.promptPlaceholder')" class="input resize-none text-sm"></textarea>
+          <div class="mt-1 flex flex-wrap items-center gap-3">
+            <button type="button" class="inline-flex items-center gap-1 text-xs text-primary-500 hover:text-primary-600" @click="showPromptHelper = !showPromptHelper">
+              <Icon name="sparkles" size="sm" /> {{ showPromptHelper ? '收起提示词助手' : 'AI 帮你写提示词' }}
+            </button>
+            <label class="inline-flex cursor-pointer items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400">
+              <Icon name="photo" size="sm" /> 参考图
+              <input ref="fileInputRef" type="file" accept="image/*" class="hidden" multiple @change="onFileChange" />
             </label>
-            <div
-              class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 px-4 py-6 transition-colors hover:border-primary-400 dark:border-dark-600 dark:hover:border-primary-500"
-              :class="{ 'border-primary-400 dark:border-primary-500': dragging }"
-              @dragover.prevent="dragging = true"
-              @dragleave.prevent="dragging = false"
-              @drop.prevent="onDrop"
-            >
-              <!-- 已选图片预览 -->
-              <div v-if="refFiles.length > 0" class="w-full">
-                <div class="flex flex-wrap gap-3 justify-center mb-3">
-                  <div v-for="(f, idx) in refPreviews" :key="idx" class="relative">
-                    <img :src="f" :alt="`ref-${idx}`" class="h-28 rounded-xl object-contain" />
-                    <button
-                      class="absolute -top-2 -right-2 rounded-full bg-red-500 text-white p-0.5 shadow-md hover:bg-red-600 transition-colors"
-                      @click="removeRef(idx)"
-                    >
-                      <Icon name="x" size="sm" />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex gap-2 justify-center">
-                  <button v-if="refFiles.length < 2" class="btn btn-ghost btn-sm" @click="triggerFileInput">
-                    <Icon name="plus" size="sm" /> 添加更多
-                  </button>
-                  <button class="btn btn-ghost btn-sm text-red-500" @click="clearAllRefs">
-                    <Icon name="x" size="sm" /> 清空全部
-                  </button>
-                </div>
+          </div>
+          <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 -translate-y-1" enter-to-class="opacity-100" leave-to-class="opacity-0">
+            <div v-if="showPromptHelper" class="mt-2 rounded-xl border border-amber-100 bg-amber-50/60 p-3 dark:border-amber-900/30 dark:bg-amber-900/10">
+              <div class="mb-2 flex flex-wrap gap-1.5">
+                <button v-for="s in stylePresets" :key="s.value" type="button" class="rounded-full px-2 py-0.5 text-[11px] font-medium transition-all"
+                  :class="selectedStyles.includes(s.value) ? 'bg-primary-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 dark:bg-dark-700 dark:text-gray-300'" @click="toggleStyle(s.value)">{{ s.label }}</button>
               </div>
-              <!-- 空状态 -->
-              <template v-else>
-                <Icon name="photo" size="xl" class="mb-2 text-gray-300 dark:text-gray-600" />
-                <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('aiStudio.image.dropHint') }}</p>
-                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">支持 JPG/PNG，最多 2 张</p>
-                <label class="btn btn-secondary btn-sm mt-3 cursor-pointer">
-                  {{ t('aiStudio.image.selectFile') }}
-                  <input ref="fileInputRef" type="file" accept="image/*" class="hidden" multiple @change="onFileChange" />
-                </label>
-              </template>
-            </div>
-          </div>
-
-          <!-- Prompt -->
-          <div>
-            <label class="input-label flex items-center justify-between">
-              <span>{{ t('aiStudio.image.promptLabel') }}</span>
-              <button
-                type="button"
-                class="inline-flex items-center gap-1 text-xs font-medium text-primary-500 transition-colors hover:text-primary-600"
-                @click="showPromptHelper = !showPromptHelper"
-              >
-                <Icon name="sparkles" size="sm" />
-                {{ showPromptHelper ? t('aiStudio.image.hidePromptHelper') : t('aiStudio.image.showPromptHelper') }}
-              </button>
-            </label>
-
-            <!-- 内联 AI 提示词生成器 -->
-            <Transition
-              enter-active-class="transition-all duration-300 ease-out"
-              enter-from-class="opacity-0 -translate-y-2"
-              enter-to-class="opacity-100 translate-y-0"
-              leave-active-class="transition-all duration-200 ease-in"
-              leave-from-class="opacity-100 translate-y-0"
-              leave-to-class="opacity-0 -translate-y-2"
-            >
-              <div
-                v-if="showPromptHelper"
-                class="mb-3 space-y-3 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/30 dark:bg-amber-900/10"
-              >
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('aiStudio.image.promptHelperHint', { model: promptModelDefault }) }}
-                </p>
-
-                <div>
-                  <label class="input-label text-xs">{{ t('aiStudio.prompt.themeLabel') }}</label>
-                  <textarea
-                    v-model="theme"
-                    rows="2"
-                    :placeholder="t('aiStudio.prompt.themePlaceholder')"
-                    class="input resize-none text-sm"
-                  ></textarea>
-                </div>
-
-                <div>
-                  <label class="input-label text-xs">{{ t('aiStudio.prompt.styleLabel') }}</label>
-                  <div class="flex flex-wrap gap-1.5">
-                    <button
-                      v-for="s in stylePresets"
-                      :key="s.value"
-                      type="button"
-                      class="rounded-full px-2.5 py-1 text-xs font-medium transition-all"
-                      :class="selectedStyles.includes(s.value)
-                        ? 'bg-primary-500 text-white shadow-sm shadow-primary-500/30'
-                        : 'bg-white text-gray-600 hover:bg-gray-100 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600'"
-                      @click="toggleStyle(s.value)"
-                    >
-                      {{ s.label }}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm w-full"
-                  :disabled="!theme.trim() || promptLoading"
-                  @click="generatePrompt"
-                >
+              <div class="flex gap-2">
+                <input v-model="theme" :placeholder="t('aiStudio.prompt.themePlaceholder')" class="input flex-1 text-xs" />
+                <button type="button" class="btn btn-secondary btn-sm flex-shrink-0" :disabled="!theme.trim() || promptLoading" @click="generatePrompt">
                   <Icon name="sparkles" size="sm" :class="promptLoading ? 'animate-pulse' : ''" />
-                  {{ promptLoading ? t('aiStudio.prompt.generating') : t('aiStudio.image.generateAndFill') }}
-                </button>
-              </div>
-            </Transition>
-
-            <textarea
-              v-model="prompt"
-              rows="5"
-              :placeholder="t('aiStudio.image.promptPlaceholder')"
-              class="input resize-none"
-            ></textarea>
-          </div>
-
-          <!-- Size + Quality + Count -->
-          <div class="space-y-3">
-            <div>
-              <label class="input-label">{{ t('aiStudio.image.sizeLabel') }}</label>
-              <div class="grid grid-cols-2 gap-2">
-                <button
-                  v-for="opt in sizeOptions"
-                  :key="opt.value"
-                  type="button"
-                  class="rounded-xl px-3 py-2 text-xs font-medium transition-all text-center"
-                  :class="size === opt.value
-                    ? 'bg-primary-500 text-white shadow-sm shadow-primary-500/30'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600'"
-                  @click="size = opt.value"
-                >
-                  <div>{{ opt.label }}</div>
-                  <div class="text-[10px] opacity-70">{{ opt.value }}</div>
                 </button>
               </div>
             </div>
+          </Transition>
+        </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="input-label">质量</label>
-                <div class="relative">
-                  <select v-model="quality" class="input appearance-none pr-9">
-                    <option v-for="q in qualityOptions" :key="q.value" :value="q.value">{{ q.label }}</option>
-                  </select>
-                  <Icon name="chevronDown" size="sm" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                </div>
-              </div>
-              <div>
-                <label class="input-label">{{ t('aiStudio.image.countLabel') }}</label>
-                <div class="relative">
-                  <select v-model.number="count" class="input appearance-none pr-9">
-                    <option v-for="n in [1, 2, 3, 4]" :key="n" :value="n">{{ n }}</option>
-                  </select>
-                  <Icon name="chevronDown" size="sm" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                </div>
-              </div>
-            </div>
+        <!-- Ref previews -->
+        <div v-if="refPreviews.length > 0" class="flex flex-wrap items-center gap-2">
+          <div v-for="(f, idx) in refPreviews" :key="idx" class="relative">
+            <img :src="f" :alt="'ref-'+idx" class="h-16 w-16 rounded-lg object-cover" />
+            <button class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px]" @click="removeRef(idx)">×</button>
           </div>
+          <button v-if="refFiles.length < 2" class="btn btn-ghost btn-sm" @click="triggerFileInput"><Icon name="plus" size="sm" /></button>
+          <button class="btn btn-ghost btn-sm text-red-500" @click="clearAllRefs">清空</button>
+        </div>
 
-          <button
-            class="btn btn-primary btn-lg w-full"
-            :disabled="!canGenerate || loading"
-            @click="generate"
-          >
-            <Icon name="sparkles" size="md" :class="loading ? 'animate-pulse' : ''" />
+        <!-- Row 3: Size + Quality + Count + Generate -->
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="opt in sizeOptions" :key="opt.value" type="button" class="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+              :class="size === opt.value ? 'bg-primary-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600'" @click="size = opt.value">{{ opt.label }}</button>
+          </div>
+          <select v-model="quality" class="input w-20 text-xs">
+            <option v-for="q in qualityOptions" :key="q.value" :value="q.value">{{ q.label }}</option>
+          </select>
+          <select v-model.number="count" class="input w-16 text-xs">
+            <option v-for="n in [1,2,3,4]" :key="n" :value="n">{{ n }}张</option>
+          </select>
+          <button class="btn btn-primary flex-1 sm:flex-none" :disabled="!canGenerate || loading" @click="generate">
+            <Icon name="sparkles" size="sm" :class="loading ? 'animate-pulse' : ''" />
             {{ loading ? t('aiStudio.image.generating') : t('aiStudio.image.generate') }}
           </button>
         </div>
+      </div>
 
-        <!-- Result Panel -->
-        <div class="min-w-0 flex-1">
-          <div class="card card-body min-h-[400px]">
-            <!-- Loading skeleton -->
-            <div v-if="loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div
-                v-for="n in count"
-                :key="n"
-                class="aspect-square animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-700"
-              ></div>
-            </div>
-
-            <!-- Results -->
-            <div v-else-if="images.length > 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div
-                v-for="(img, i) in images"
-                :key="i"
-                class="group relative overflow-hidden rounded-2xl border border-gray-100 dark:border-dark-700"
-              >
-                <img
-                  :src="img"
-                  :alt="`result-${i}`"
-                  class="aspect-square w-full cursor-zoom-in object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  @click="openLightbox(img)"
-                />
-                <div class="pointer-events-none absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
-                  <div class="pointer-events-auto flex gap-2">
-                    <button
-                      class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105"
-                      title="放大查看"
-                      @click.stop="openLightbox(img)"
-                    >
-                      <Icon name="search" size="sm" />
-                    </button>
-                    <button
-                      class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105"
-                      :title="t('common.download')"
-                      @click.stop="download(img, i)"
-                    >
-                      <Icon name="download" size="sm" />
-                    </button>
-                  </div>
-                </div>
+      <!-- Results Grid -->
+      <div class="card card-body min-h-[400px]">
+        <div v-if="loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-for="n in count" :key="n" class="aspect-[3/4] animate-pulse rounded-2xl bg-gray-100 dark:bg-dark-700"></div>
+        </div>
+        <div v-else-if="images.length > 0" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div v-for="(img, i) in images" :key="i" class="group relative overflow-hidden rounded-2xl border border-gray-100 dark:border-dark-700">
+            <img :src="img" :alt="'result-'+i" class="aspect-[3/4] w-full cursor-zoom-in object-cover transition-transform duration-300 group-hover:scale-[1.02]" @click="openLightbox(img)" />
+            <div class="pointer-events-none absolute inset-0 flex items-end justify-end bg-gradient-to-t from-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+              <div class="pointer-events-auto flex gap-2">
+                <button class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105" title="放大" @click.stop="openLightbox(img)"><Icon name="search" size="sm" /></button>
+                <button class="rounded-xl bg-white/90 p-2.5 text-gray-800 shadow-md backdrop-blur transition-transform hover:scale-105" :title="t('common.download')" @click.stop="download(img, i)"><Icon name="download" size="sm" /></button>
               </div>
-            </div>
-
-            <!-- Empty -->
-            <div v-else class="flex h-full min-h-[360px] flex-col items-center justify-center text-center">
-              <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-50 text-purple-400 dark:bg-purple-900/20 dark:text-purple-500">
-                <Icon name="photo" size="xl" />
-              </div>
-              <p class="text-gray-500 dark:text-gray-400">{{ t('aiStudio.image.emptyHint') }}</p>
             </div>
           </div>
+        </div>
+        <div v-else class="flex h-full min-h-[300px] flex-col items-center justify-center text-center">
+          <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-purple-50 text-purple-400 dark:bg-purple-900/20 dark:text-purple-500"><Icon name="photo" size="xl" /></div>
+          <p class="text-gray-500 dark:text-gray-400">{{ t('aiStudio.image.emptyHint') }}</p>
         </div>
       </div>
     </div>
 
-    <!-- Lightbox 图片放大查看 -->
+    <!-- Lightbox -->
     <Teleport to="body">
       <Transition name="lightbox-fade">
-        <div
-          v-if="lightboxSrc"
-          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
-          @click="closeLightbox"
-        >
-          <button
-            class="absolute right-5 top-5 rounded-full bg-white/10 p-3 text-white backdrop-blur transition-all hover:bg-white/20 hover:scale-110"
-            title="关闭"
-            @click.stop="closeLightbox"
-          >
-            <Icon name="x" size="md" />
-          </button>
-          <img
-            :src="lightboxSrc"
-            alt="preview"
-            class="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
-            @click.stop
-          />
+        <div v-if="lightboxSrc" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4" @click="closeLightbox">
+          <button class="absolute right-5 top-5 rounded-full bg-white/10 p-3 text-white backdrop-blur transition-all hover:bg-white/20 hover:scale-110" title="关闭" @click.stop="closeLightbox"><Icon name="x" size="md" /></button>
+          <img :src="lightboxSrc" alt="preview" class="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl" @click.stop />
         </div>
       </Transition>
     </Teleport>
   </AppLayout>
+</template>
 </template>
 
 <script setup lang="ts">
