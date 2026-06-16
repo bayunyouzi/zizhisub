@@ -547,54 +547,56 @@
   /* ============ 侧边栏 ============ */
   .sidebar {
     @apply fixed inset-y-0 left-0 z-40;
-    @apply w-64 bg-white/80 dark:bg-dark-900/80;
-    @apply backdrop-blur-2xl backdrop-saturate-150;
-    @apply border-r border-gray-200/70 dark:border-dark-800;
+    @apply w-64;
+    @apply bg-white/70 dark:bg-dark-900/70;
+    @apply backdrop-blur-3xl backdrop-saturate-200;
+    @apply border-r border-gray-200/40 dark:border-white/5;
     @apply flex flex-col;
     @apply transition-transform duration-300;
+    @apply shadow-glass-sm;
     transition-property: width, transform;
   }
 
   .sidebar-header {
-    @apply h-16 px-6;
+    @apply h-16 px-5;
     @apply flex items-center gap-3;
-    @apply border-b border-gray-100/80 dark:border-dark-800;
+    @apply border-b border-gray-100/50 dark:border-white/5;
     transition:
       padding 0.2s ease,
       gap 0.2s ease;
   }
 
   .sidebar-nav {
-    @apply flex-1 overflow-y-auto px-3 py-4;
+    @apply flex-1 overflow-y-auto px-2.5 py-4;
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-xl py-2.5;
-    @apply overflow-hidden;
+    @apply flex items-center gap-3 rounded-2xl px-3.5 py-2.5;
+    @apply mb-0.5 overflow-hidden;
     @apply text-sm font-medium;
-    @apply text-gray-600 dark:text-dark-300;
+    @apply text-gray-500 dark:text-dark-400;
     @apply transition-all duration-200;
-    @apply hover:bg-gray-100/80 dark:hover:bg-dark-800;
+    @apply hover:bg-gray-100/70 dark:hover:bg-white/5;
     @apply hover:text-gray-900 dark:hover:text-white;
-    padding-left: 1.0625rem;
-    padding-right: 0.875rem;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .sidebar-link-active {
-    @apply bg-primary-50 dark:bg-primary-900/20;
-    @apply text-primary-600 dark:text-primary-400;
+    @apply bg-white dark:bg-white/10;
+    @apply text-gray-900 dark:text-white;
     @apply font-semibold;
-    @apply shadow-soft;
-    @apply hover:bg-primary-100/80 dark:hover:bg-primary-900/30;
+    @apply shadow-sm;
+    @apply ring-1 ring-gray-200/60 dark:ring-white/10;
+    @apply hover:bg-white dark:hover:bg-white/15;
   }
 
   .sidebar-section {
-    @apply mb-6;
+    @apply mb-4;
   }
 
   .sidebar-section-title {
-    @apply mb-2 px-3;
-    @apply text-xs font-semibold uppercase tracking-wider;
+    @apply mb-1 px-4 py-1;
+    @apply text-[11px] font-semibold uppercase tracking-wider;
     @apply text-gray-400 dark:text-dark-500;
   }
 
@@ -762,11 +764,6 @@
   /* 文字渐变 */
   .text-gradient {
     @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
-  }
-
-  /* 玻璃效果 */
-  .glass {
-    @apply bg-white/70 backdrop-blur-2xl backdrop-saturate-150 dark:bg-dark-800/70;
   }
 
   /* 隐藏滚动条 */
