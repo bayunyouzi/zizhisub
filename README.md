@@ -10,7 +10,7 @@
 
 <a href="https://trendshift.io/repositories/21823" target="_blank"><img src="https://trendshift.io/api/badge/repositories/21823" alt="Wei-Shaw%2Fsub2api | Trendshift" width="250" height="55"/></a>
 
-**AI API Gateway Platform for Subscription Quota Distribution**
+**AI API Gateway Platform for Subscription Quota Distribution** 
 
 English | [日本語](README_JA.md)
 
