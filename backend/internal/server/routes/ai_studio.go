@@ -148,7 +148,10 @@ func buildAIStudioDeps(redisClient *redis.Client, cfg *config.Config) *aiStudioD
 		gatewayBase:  gatewayBase,
 		imageBaseURL: strings.TrimSpace(os.Getenv("AI_STUDIO_IMAGE_BASE_URL")),
 		httpClient: &http.Client{
-			Timeout: 180 * time.Second,
+			// 4K/2K 出图（尤其 gpt-image-2 实验性尺寸）单次可能 200s+，
+			// 180s 会先于上游完成而取消 ctx，导致网关层报 context canceled 502。
+			// 延长到 10 分钟，给上游足够时间返回原图。
+			Timeout: 600 * time.Second,
 		},
 	}
 }
