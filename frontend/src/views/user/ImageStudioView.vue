@@ -182,16 +182,14 @@ const refFiles = ref<File[]>([])
 const refPreviews = ref<string[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-// GPT Image 2 支持的尺寸选项（已验证文档）
-// 规则: 长边≤3840px, 宽高为16倍数, 比例≤3:1, 总像素655360~8294400
+// GPT Image 2 支持的尺寸选项
+// 注：4K(3840x2160/2160x3840) 经实测上游不稳定，暂不开放，仅保留 2K 及以下
 const sizeOptions = [
   { value: '1024x1024', label: '1:1 正方形' },
   { value: '1536x1024', label: '3:2 横屏' },
   { value: '1024x1536', label: '2:3 竖屏' },
   { value: '2048x2048', label: '1:1 2K' },
   { value: '2048x1152', label: '16:9 2K横屏' },
-  { value: '3840x2160', label: '16:9 4K横屏' },
-  { value: '2160x3840', label: '9:16 4K竖屏' },
 ]
 
 // 质量选项

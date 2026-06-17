@@ -3,12 +3,8 @@ package routes
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -18,13 +14,11 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"github.com/tidwall/sjson"
 )
 
 // =============================================================================
@@ -44,18 +38,12 @@ import (
 //   - 管理员豁免：role == admin 或邮箱命中白名单（默认含站长邮箱）。
 //
 // 环境变量：
-//   AI_STUDIO_PROMPT_KEY    提示词生成用的系统默认密钥（sk-...）
-//   AI_STUDIO_IMAGE_KEY     生图用的系统默认密钥（sk-...）
-//   AI_STUDIO_PROMPT_MODEL  提示词默认模型（缺省 gpt-5.5）
-//   AI_STUDIO_IMAGE_MODEL   生图默认模型（缺省 gpt-image-2）
-//   AI_STUDIO_DAILY_LIMIT   默认密钥每日生图次数（缺省 10）
-//   AI_STUDIO_ADMIN_EMAILS  逗号分隔的管理员邮箱白名单（无限使用）
-//   AI_STUDIO_IMAGE_BASE_URL 生图直连地址（缺省=走本机网关）。
-//     配置后生图请求绕过本机网关的 OAuth 分流，直连该地址的 /v1/images/* 端点。
-//     用途：当网关 group 下绑的是 OAuth(ChatGPT Plus) 账号时，ChatGPT 内部会对
-//     image_generation 输出做 web 缩放（返回非 16 倍数的小图），导致"请求 4K 但拿到
-//     1672×941"。配置此项为 https://api.openai.com（或你的中转商地址）即可直连获取原图。
-//     注意：直连模式不走网关计费/日志/failover，AI Studio 自有终身限额仍生效。
+//   AI_STUDIO_PROMPT_KEY   提示词生成用的系统默认密钥（sk-...）
+//   AI_STUDIO_IMAGE_KEY    生图用的系统默认密钥（sk-...）
+//   AI_STUDIO_PROMPT_MODEL 提示词默认模型（缺省 gpt-5.5）
+//   AI_STUDIO_IMAGE_MODEL  生图默认模型（缺省 gpt-image-2）
+//   AI_STUDIO_DAILY_LIMIT  默认密钥每日生图次数（缺省 10）
+//   AI_STUDIO_ADMIN_EMAILS 逗号分隔的管理员邮箱白名单（无限使用）
 // =============================================================================
 
 const (
@@ -68,16 +56,15 @@ const (
 
 // aiStudioDeps 聚合 AI Studio 路由所需依赖。
 type aiStudioDeps struct {
-	redis        *redis.Client
-	cfg          *config.Config
-	promptKey    string
-	imageKey     string
-	promptModel  string
-	imageModel   string
-	freeLimit    int    // 每个账号终生免费次数（管理员无限）
-	gatewayBase  string // 本机回环网关地址，如 http://127.0.0.1:8080/v1
-	imageBaseURL string // 生图直连地址（AI_STUDIO_IMAGE_BASE_URL）。非空=直连 OpenAI 绕过网关 OAuth 分流，避免 ChatGPT 内部缩放导致非原图
-	httpClient   *http.Client
+	redis       *redis.Client
+	cfg         *config.Config
+	promptKey   string
+	imageKey    string
+	promptModel string
+	imageModel  string
+	freeLimit   int // 每个账号终生免费次数（管理员无限）
+	gatewayBase string // 本机回环网关地址，如 http://127.0.0.1:8080/v1
+	httpClient  *http.Client
 }
 
 // RegisterAIStudioRoutes 注册 /api/v1/ai-studio/* 路由（需要 JWT 登录态）。
@@ -138,20 +125,16 @@ func buildAIStudioDeps(redisClient *redis.Client, cfg *config.Config) *aiStudioD
 	gatewayBase := fmt.Sprintf("http://127.0.0.1:%d/v1", port)
 
 	return &aiStudioDeps{
-		redis:        redisClient,
-		cfg:          cfg,
-		promptKey:    strings.TrimSpace(os.Getenv("AI_STUDIO_PROMPT_KEY")),
-		imageKey:     strings.TrimSpace(os.Getenv("AI_STUDIO_IMAGE_KEY")),
-		promptModel:  promptModel,
-		imageModel:   imageModel,
-		freeLimit:    freeLimit,
-		gatewayBase:  gatewayBase,
-		imageBaseURL: strings.TrimSpace(os.Getenv("AI_STUDIO_IMAGE_BASE_URL")),
+		redis:       redisClient,
+		cfg:         cfg,
+		promptKey:   strings.TrimSpace(os.Getenv("AI_STUDIO_PROMPT_KEY")),
+		imageKey:    strings.TrimSpace(os.Getenv("AI_STUDIO_IMAGE_KEY")),
+		promptModel: promptModel,
+		imageModel:  imageModel,
+		freeLimit:   freeLimit,
+		gatewayBase: gatewayBase,
 		httpClient: &http.Client{
-			// 4K/2K 出图（尤其 gpt-image-2 实验性尺寸）单次可能 200s+，
-			// 180s 会先于上游完成而取消 ctx，导致网关层报 context canceled 502。
-			// 延长到 10 分钟，给上游足够时间返回原图。
-			Timeout: 600 * time.Second,
+			Timeout: 180 * time.Second,
 		},
 	}
 }
@@ -320,7 +303,7 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 		payload["quality"] = q
 	}
 
-	status, body, err := d.forwardImageJSON(c.Request.Context(), "/images/generations", apiKey, payload)
+	status, body, err := d.forwardJSON(c.Request.Context(), "/images/generations", apiKey, payload)
 	if err != nil {
 		if commit != nil {
 			commit() // 回滚
@@ -336,8 +319,6 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 		return
 	}
 
-	// 解码真实像素并记录诊断日志，在响应中追加 image_actual_size 字段
-	body = d.logAndAnnotateImageSize(body, strings.TrimSpace(req.Size))
 	c.Data(status, "application/json; charset=utf-8", body)
 }
 
@@ -433,7 +414,7 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 	}
 	_ = mw.Close()
 
-	status, body, err := d.forwardImageMultipart(c.Request.Context(), "/images/edits", apiKey, mw.FormDataContentType(), buf.Bytes())
+	status, body, err := d.forwardMultipart(c.Request.Context(), "/images/edits", apiKey, mw.FormDataContentType(), buf.Bytes())
 	if err != nil {
 		if commit != nil {
 			commit()
@@ -449,8 +430,6 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 		return
 	}
 
-	// 解码真实像素并记录诊断日志
-	body = d.logAndAnnotateImageSize(body, size)
 	c.Data(status, "application/json; charset=utf-8", body)
 }
 
@@ -552,107 +531,6 @@ func (d *aiStudioDeps) secondsUntilEndOfDay() time.Duration {
 func (d *aiStudioDeps) isAdmin(c *gin.Context) bool {
 	role, ok := middleware.GetUserRoleFromContext(c)
 	return ok && role == service.RoleAdmin
-}
-
-// ---------------------------------------------------------------------------
-// 生图直连 & 真实像素诊断
-// ---------------------------------------------------------------------------
-
-// resolveImageBase 返回生图请求应打的目标 base URL。
-// 若配置了 AI_STUDIO_IMAGE_BASE_URL（如 https://api.openai.com），直连该地址，
-// 绕过本机网关的 OAuth 分流——避免 ChatGPT 内部对 image_generation 输出做 web 缩放。
-// 否则回环打本机网关（保留计费、日志、failover 等网关能力）。
-func (d *aiStudioDeps) resolveImageBase() string {
-	if d.imageBaseURL != "" {
-		return d.imageBaseURL
-	}
-	return d.gatewayBase
-}
-
-// isDirectImageMode 是否走了直连模式（绕过本机网关）。
-func (d *aiStudioDeps) isDirectImageMode() bool {
-	return d.imageBaseURL != ""
-}
-
-// forwardImageJSON 向生图端点发送 JSON 请求（支持直连或回环网关）。
-func (d *aiStudioDeps) forwardImageJSON(ctx context.Context, path, apiKey string, payload any) (int, []byte, error) {
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return 0, nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.resolveImageBase()+path, bytes.NewReader(raw))
-	if err != nil {
-		return 0, nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	return d.do(req)
-}
-
-// forwardImageMultipart 向生图端点发送 multipart 请求（支持直连或回环网关）。
-func (d *aiStudioDeps) forwardImageMultipart(ctx context.Context, path, apiKey, contentType string, body []byte) (int, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.resolveImageBase()+path, bytes.NewReader(body))
-	if err != nil {
-		return 0, nil, err
-	}
-	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	return d.do(req)
-}
-
-// decodeActualImageSize 从 OpenAI Images 响应中解码第一张图片的真实像素尺寸。
-// gpt-image-2 原生输出尺寸必须是 16 的倍数；若实际尺寸非 16 倍数，说明被上游缩放了。
-func decodeActualImageSize(body []byte) (width, height int) {
-	var resp struct {
-		Data []struct {
-			B64JSON string `json:"b64_json"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &resp); err != nil || len(resp.Data) == 0 {
-		return 0, 0
-	}
-	b64 := strings.TrimSpace(resp.Data[0].B64JSON)
-	if b64 == "" {
-		return 0, 0
-	}
-	raw, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return 0, 0
-	}
-	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil {
-		return 0, 0
-	}
-	return cfg.Width, cfg.Height
-}
-
-// logAndAnnotateImageSize 解码响应图片的真实像素，记录诊断日志，
-// 并在响应 JSON 中追加 image_actual_size 字段供前端展示。
-func (d *aiStudioDeps) logAndAnnotateImageSize(body []byte, requestedSize string) []byte {
-	w, h := decodeActualImageSize(body)
-	if w <= 0 || h <= 0 {
-		return body
-	}
-	route := "本机网关"
-	if d.isDirectImageMode() {
-		route = "直连(" + d.imageBaseURL + ")"
-	}
-	actual := fmt.Sprintf("%dx%d", w, h)
-	mismatch := requestedSize != "" && requestedSize != actual
-	if mismatch {
-		logger.LegacyPrintf("ai_studio.image",
-			"[AI Studio] ⚠️ 生图尺寸不一致 路径=%s 请求size=%s 实际像素=%s — 图片被上游缩放！建议配置 AI_STUDIO_IMAGE_BASE_URL 直连 OpenAI 获取原图",
-			route, requestedSize, actual)
-	} else {
-		logger.LegacyPrintf("ai_studio.image",
-			"[AI Studio] ✓ 生图尺寸一致 路径=%s 请求size=%s 实际像素=%s",
-			route, requestedSize, actual)
-	}
-	// 在响应 JSON 中追加真实尺寸字段，前端可读取展示
-	if annotated, err := sjson.SetBytes(body, "image_actual_size", actual); err == nil {
-		return annotated
-	}
-	return body
 }
 
 // ---------------------------------------------------------------------------

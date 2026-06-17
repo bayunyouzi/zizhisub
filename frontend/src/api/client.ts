@@ -14,9 +14,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  // 生图（4K/2K）单次可能 200s+，需与后端 AI Studio httpClient(600s) 对齐，
-  // 避免前端先超时断连导致后端 context canceled。
-  timeout: 600000,
+  timeout: 300000,
   headers: {
     'Content-Type': 'application/json'
   }
