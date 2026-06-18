@@ -71,7 +71,7 @@ export async function generateImageViaStudio(params: {
   return data?.data || []
 }
 
-/** 图生图 / 参考图生图（multipart）。当前仅支持单张参考图。userKey 非空时用用户自己的密钥（不限额）。 */
+/** 图生图 / 参考图生图（multipart）。支持最多 3 张参考图。userKey 非空时用用户自己的密钥（不限额）。 */
 export async function editImageViaStudio(params: {
   prompt: string
   images: File[]
@@ -83,8 +83,8 @@ export async function editImageViaStudio(params: {
 }): Promise<AIStudioImage[]> {
   const form = new FormData()
   form.append('prompt', params.prompt)
-  if (params.images.length > 0) {
-    form.append('image', params.images[0])
+  for (const img of params.images.slice(0, 3)) {
+    form.append('image', img)
   }
   if (params.model) form.append('model', params.model)
   if (params.size) form.append('size', params.size)

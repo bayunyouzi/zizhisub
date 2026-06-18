@@ -43,7 +43,7 @@
             </button>
             <label class="inline-flex cursor-pointer items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400">
               <Icon name="photo" size="sm" /> 参考图
-              <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="onFileChange" />
+              <input ref="fileInputRef" type="file" accept="image/*" class="hidden" multiple @change="onFileChange" />
             </label>
           </div>
           <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 -translate-y-1" enter-to-class="opacity-100" leave-to-class="opacity-0">
@@ -68,7 +68,7 @@
             <img :src="f" :alt="'ref-'+idx" class="h-16 w-16 rounded-lg object-cover" />
             <button class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px]" @click="removeRef(idx)">×</button>
           </div>
-          <button v-if="refFiles.length < 1" class="btn btn-ghost btn-sm" @click="triggerFileInput"><Icon name="plus" size="sm" /></button>
+          <button v-if="refFiles.length < 3" class="btn btn-ghost btn-sm" @click="triggerFileInput"><Icon name="plus" size="sm" /></button>
           <button class="btn btn-ghost btn-sm text-red-500" @click="clearAllRefs">清空</button>
         </div>
 
@@ -141,6 +141,7 @@ import {
   type AIStudioImage
 } from '@/api/aiStudio'
 import { useAppStore } from '@/stores/app'
+import { apiClient } from '@/api/client'
 
 type Mode = 'generate' | 'edit'
 type KeyMode = 'default' | 'own'
@@ -177,7 +178,7 @@ const cfg = ref<AIStudioConfig | null>(null)
 const imageModelDefault = ref('gpt-image-2')
 const promptModelDefault = ref('gpt-5.5')
 
-// 参考图（当前图生图仅支持单张参考图）
+// 参考图（最多支持 3 张）
 const refFiles = ref<File[]>([])
 const refPreviews = ref<string[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -190,6 +191,7 @@ const sizeOptions = [
   { value: '1024x1536', label: '2:3 竖屏' },
   { value: '2048x2048', label: '1:1 2K' },
   { value: '2048x1152', label: '16:9 2K横屏' },
+  { value: '1152x2048', label: '9:16 2K竖屏' },
 ]
 
 // 质量选项
@@ -297,16 +299,18 @@ function triggerFileInput() {
 
 function addRefFiles(files: FileList | File[]) {
   const newFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
-  const remaining = 1 - refFiles.value.length
+  const remaining = 3 - refFiles.value.length
   if (remaining <= 0 || newFiles.length === 0) return
 
-  const [toAdd] = newFiles
-  refFiles.value = [toAdd]
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    refPreviews.value = [(e.target?.result as string) || '']
+  const toAdd = newFiles.slice(0, remaining)
+  refFiles.value = [...refFiles.value, ...toAdd]
+  for (const f of toAdd) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      refPreviews.value.push((e.target?.result as string) || '')
+    }
+    reader.readAsDataURL(f)
   }
-  reader.readAsDataURL(toAdd)
 }
 
 function onFileChange(e: Event) {
@@ -407,23 +411,31 @@ async function generate() {
 }
 
 async function download(src: string, index: number) {
+  const filename = `ai-image-${Date.now()}-${index + 1}.png`
   try {
-    const a = document.createElement('a')
-    const filename = `ai-image-${Date.now()}-${index + 1}.png`
     if (src.startsWith('data:')) {
+      // base64：直接触发浏览器下载
+      const a = document.createElement('a')
       a.href = src
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
     } else {
-      // 远程 url：先 fetch 成 blob，避免跨域直接下载被当成导航
-      const resp = await fetch(src)
-      const blob = await resp.blob()
-      a.href = URL.createObjectURL(blob)
-    }
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    if (!src.startsWith('data:')) {
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+      // 远程 url：通过后端代理下载，避免浏览器 CORS 限制
+      const resp = await apiClient.get('/ai-studio/image/download', {
+        params: { url: src },
+        responseType: 'blob'
+      })
+      const blob = new Blob([resp.data])
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
     }
   } catch {
     // 下载失败兜底：新标签打开

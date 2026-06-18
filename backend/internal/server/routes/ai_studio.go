@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -88,6 +89,8 @@ func RegisterAIStudioRoutes(
 		grp.POST("/image/generate", deps.handleImageGenerate)
 		// 图生图：与文生图共享每日限额。
 		grp.POST("/image/edit", deps.handleImageEdit)
+		// 图片代理下载（绕过浏览器 CORS 限制）。
+		grp.GET("/image/download", deps.handleImageDownload)
 	}
 }
 
@@ -395,9 +398,8 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 		_ = mw.WriteField("quality", quality)
 	}
 
-	// 仅转发第一张参考图，并保留其 Content-Type，避免上游把图片当作裸二进制拒绝。
-	if len(fileHeaders) > 0 {
-		fh := fileHeaders[0]
+	// 转发参考图（最多 3 张），保留每个文件 part 的 Content-Type。
+	for _, fh := range fileHeaders[:min(len(fileHeaders), 3)] {
 		src, err := fh.Open()
 		if err != nil {
 			if commit != nil {
@@ -616,4 +618,53 @@ func (d *aiStudioDeps) writeUpstreamError(c *gin.Context, status int, body []byt
 	c.JSON(status, gin.H{
 		"error": fmt.Sprintf("上游 %s 返回 HTTP %d（非 JSON 响应），该上游可能不支持此端点。响应片段: %s", endpoint, status, snippet),
 	})
+}
+
+// ---------------------------------------------------------------------------
+// GET /image/download —— 代理下载图片（绕过浏览器 CORS 限制）
+// ---------------------------------------------------------------------------
+
+func (d *aiStudioDeps) handleImageDownload(c *gin.Context) {
+	rawURL := strings.TrimSpace(c.Query("url"))
+	if rawURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 url 参数"})
+		return
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的图片 URL"})
+		return
+	}
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, rawURL, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建请求失败"})
+		return
+	}
+
+	resp, err := d.httpClient.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "下载图片失败: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("上游返回 HTTP %d", resp.StatusCode)})
+		return
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", "attachment; filename=\"ai-image.png\"")
+
+	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
+		// 连接可能已断开，无法再写 JSON，静默返回。
+		return
+	}
 }
