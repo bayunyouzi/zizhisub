@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"os"
 	"strconv"
 	"strings"
@@ -62,7 +63,7 @@ type aiStudioDeps struct {
 	imageKey    string
 	promptModel string
 	imageModel  string
-	freeLimit   int // 每个账号终生免费次数（管理员无限）
+	freeLimit   int    // 每个账号终生免费次数（管理员无限）
 	gatewayBase string // 本机回环网关地址，如 http://127.0.0.1:8080/v1
 	httpClient  *http.Client
 }
@@ -156,14 +157,14 @@ func (d *aiStudioDeps) handleConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"prompt_model":          d.promptModel,
-		"image_model":           d.imageModel,
-		"has_prompt_key":        d.promptKey != "",
-		"has_image_key":         d.imageKey != "",
-		"free_image_limit":      d.freeLimit,
-		"free_image_used":       used,
-		"free_image_remaining":  remaining,
-		"unlimited":             isAdmin,
+		"prompt_model":         d.promptModel,
+		"image_model":          d.imageModel,
+		"has_prompt_key":       d.promptKey != "",
+		"has_image_key":        d.imageKey != "",
+		"free_image_limit":     d.freeLimit,
+		"free_image_used":      used,
+		"free_image_remaining": remaining,
+		"unlimited":            isAdmin,
 	})
 }
 
@@ -209,11 +210,11 @@ func (d *aiStudioDeps) handlePrompt(c *gin.Context) {
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": userPrompt},
 		},
-		"temperature":       0.8,
-		"stream":            false,
-		"reasoning_effort":  "none",
-		"enable_thinking":   false,
-		"thinking":          map[string]any{"type": "disabled"},
+		"temperature":      0.8,
+		"stream":           false,
+		"reasoning_effort": "none",
+		"enable_thinking":  false,
+		"thinking":         map[string]any{"type": "disabled"},
 	}
 
 	status, body, err := d.forwardJSON(c.Request.Context(), "/chat/completions", d.promptKey, payload)
@@ -246,12 +247,12 @@ func (d *aiStudioDeps) handlePrompt(c *gin.Context) {
 // ---------------------------------------------------------------------------
 
 type aiStudioImageGenRequest struct {
-	Prompt   string `json:"prompt"`
-	Model    string `json:"model"`
-	Size     string `json:"size"`
-	Quality  string `json:"quality"`
-	N        int    `json:"n"`
-	UserKey  string `json:"user_key"`  // 用户自带密钥（可空）。非空=用自己的，不限额。
+	Prompt  string `json:"prompt"`
+	Model   string `json:"model"`
+	Size    string `json:"size"`
+	Quality string `json:"quality"`
+	N       int    `json:"n"`
+	UserKey string `json:"user_key"` // 用户自带密钥（可空）。非空=用自己的，不限额。
 }
 
 func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
@@ -301,7 +302,7 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 	if s := strings.TrimSpace(req.Size); s != "" {
 		payload["size"] = s
 	}
-	if q := strings.TrimSpace(req.Quality); q != "" {
+	if q := strings.TrimSpace(req.Quality); q != "" && !strings.EqualFold(q, "auto") {
 		payload["quality"] = q
 	}
 
@@ -375,6 +376,9 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 	size := strings.TrimSpace(c.PostForm("size"))
 	n := strings.TrimSpace(c.PostForm("n"))
 	quality := strings.TrimSpace(c.PostForm("quality"))
+	if strings.EqualFold(quality, "auto") {
+		quality = ""
+	}
 
 	// 重新组装 multipart 转发到 /v1/images/edits
 	var buf bytes.Buffer
@@ -391,7 +395,7 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 		_ = mw.WriteField("quality", quality)
 	}
 
-	// 写入所有参考图
+	// 写入所有参考图。保留每个文件 part 的 Content-Type，避免上游把图片当作裸二进制拒绝。
 	for _, fh := range fileHeaders {
 		src, err := fh.Open()
 		if err != nil {
@@ -401,7 +405,16 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "参考图读取失败: " + fh.Filename})
 			return
 		}
-		part, err := mw.CreateFormFile("image", fh.Filename)
+
+		contentType := fh.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		partHeader := make(textproto.MIMEHeader)
+		partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, escapeMultipartFilename(fh.Filename)))
+		partHeader.Set("Content-Type", contentType)
+
+		part, err := mw.CreatePart(partHeader)
 		if err == nil {
 			_, err = io.Copy(part, src)
 		}
@@ -538,6 +551,10 @@ func (d *aiStudioDeps) isAdmin(c *gin.Context) bool {
 // ---------------------------------------------------------------------------
 // 回环转发到本机 /v1 网关
 // ---------------------------------------------------------------------------
+
+func escapeMultipartFilename(filename string) string {
+	return strings.NewReplacer("\\", "\\\\", `"`, "\\\"").Replace(filename)
+}
 
 func (d *aiStudioDeps) forwardJSON(ctx context.Context, path, apiKey string, payload any) (int, []byte, error) {
 	raw, err := json.Marshal(payload)
