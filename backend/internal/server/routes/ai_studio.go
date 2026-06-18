@@ -133,8 +133,10 @@ func buildAIStudioDeps(redisClient *redis.Client, cfg *config.Config) *aiStudioD
 		imageModel:  imageModel,
 		freeLimit:   freeLimit,
 		gatewayBase: gatewayBase,
+		// 上游中转商(newapi.prorisehub.com)出图慢，2K偶尔也超180s，
+		// 拉长到 600s 避免 context canceled 502。
 		httpClient: &http.Client{
-			Timeout: 180 * time.Second,
+			Timeout: 600 * time.Second,
 		},
 	}
 }
