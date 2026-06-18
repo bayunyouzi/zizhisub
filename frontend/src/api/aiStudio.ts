@@ -92,10 +92,11 @@ export async function editImageViaStudio(params: {
   if (params.n) form.append('n', String(params.n))
   if (params.userKey) form.append('user_key', params.userKey)
 
+  // 注意：不能手动设置 Content-Type: multipart/form-data，否则会缺少 boundary，
+  // 后端无法解析 multipart body。让 axios 检测到 FormData 后自动生成带 boundary 的 header。
   const { data } = await apiClient.post<{ data?: AIStudioImage[] }>(
     '/ai-studio/image/edit',
-    form,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
+    form
   )
   return data?.data || []
 }

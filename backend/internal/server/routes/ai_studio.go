@@ -317,7 +317,7 @@ func (d *aiStudioDeps) handleImageGenerate(c *gin.Context) {
 		if commit != nil {
 			commit() // 上游业务失败也回滚，不浪费用户次数
 		}
-		c.Data(status, "application/json; charset=utf-8", body)
+		d.writeUpstreamError(c, status, body, "/v1/images/generations")
 		return
 	}
 
@@ -428,7 +428,7 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 		if commit != nil {
 			commit()
 		}
-		c.Data(status, "application/json; charset=utf-8", body)
+		d.writeUpstreamError(c, status, body, "/v1/images/edits")
 		return
 	}
 
@@ -574,4 +574,28 @@ func (d *aiStudioDeps) do(req *http.Request) (int, []byte, error) {
 		return resp.StatusCode, nil, err
 	}
 	return resp.StatusCode, body, nil
+}
+
+// writeUpstreamError 统一处理上游网关返回非 2xx 时的响应透传。
+//
+// 问题背景：上游 /v1/images/* 端点在某些中转商上可能不存在（返回 404 HTML 页面），
+// 直接 c.Data 透传会让前端 axios 拿到「非 JSON body + 404 状态码」，
+// 解析不出错误文案，最终只显示 "Request failed with status code 404"。
+//
+// 处理策略：
+//   - body 是合法 JSON：原样透传（保留上游错误结构，前端可解析 error.message）。
+//   - body 非 JSON（HTML/纯文本等）：包装成可读 {"error":"..."} 返回，
+//     附带上游状态码与响应片段，便于定位「上游不支持该端点」类问题。
+func (d *aiStudioDeps) writeUpstreamError(c *gin.Context, status int, body []byte, endpoint string) {
+	if json.Valid(body) {
+		c.Data(status, "application/json; charset=utf-8", body)
+		return
+	}
+	snippet := strings.TrimSpace(string(body))
+	if len(snippet) > 500 {
+		snippet = snippet[:500] + "..."
+	}
+	c.JSON(status, gin.H{
+		"error": fmt.Sprintf("上游 %s 返回 HTTP %d（非 JSON 响应），该上游可能不支持此端点。响应片段: %s", endpoint, status, snippet),
+	})
 }
