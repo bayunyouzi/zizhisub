@@ -395,8 +395,9 @@ func (d *aiStudioDeps) handleImageEdit(c *gin.Context) {
 		_ = mw.WriteField("quality", quality)
 	}
 
-	// 写入所有参考图。保留每个文件 part 的 Content-Type，避免上游把图片当作裸二进制拒绝。
-	for _, fh := range fileHeaders {
+	// 仅转发第一张参考图，并保留其 Content-Type，避免上游把图片当作裸二进制拒绝。
+	if len(fileHeaders) > 0 {
+		fh := fileHeaders[0]
 		src, err := fh.Open()
 		if err != nil {
 			if commit != nil {

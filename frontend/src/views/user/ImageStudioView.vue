@@ -43,7 +43,7 @@
             </button>
             <label class="inline-flex cursor-pointer items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400">
               <Icon name="photo" size="sm" /> 参考图
-              <input ref="fileInputRef" type="file" accept="image/*" class="hidden" multiple @change="onFileChange" />
+              <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="onFileChange" />
             </label>
           </div>
           <Transition enter-active-class="transition-all duration-200" enter-from-class="opacity-0 -translate-y-1" enter-to-class="opacity-100" leave-to-class="opacity-0">
@@ -68,7 +68,7 @@
             <img :src="f" :alt="'ref-'+idx" class="h-16 w-16 rounded-lg object-cover" />
             <button class="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px]" @click="removeRef(idx)">×</button>
           </div>
-          <button v-if="refFiles.length < 2" class="btn btn-ghost btn-sm" @click="triggerFileInput"><Icon name="plus" size="sm" /></button>
+          <button v-if="refFiles.length < 1" class="btn btn-ghost btn-sm" @click="triggerFileInput"><Icon name="plus" size="sm" /></button>
           <button class="btn btn-ghost btn-sm text-red-500" @click="clearAllRefs">清空</button>
         </div>
 
@@ -177,7 +177,7 @@ const cfg = ref<AIStudioConfig | null>(null)
 const imageModelDefault = ref('gpt-image-2')
 const promptModelDefault = ref('gpt-5.5')
 
-// 参考图（文生图和图生图都支持，最多2张）
+// 参考图（当前图生图仅支持单张参考图）
 const refFiles = ref<File[]>([])
 const refPreviews = ref<string[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -297,16 +297,16 @@ function triggerFileInput() {
 
 function addRefFiles(files: FileList | File[]) {
   const newFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
-  const remaining = 2 - refFiles.value.length
-  const toAdd = newFiles.slice(0, remaining)
-  for (const f of toAdd) {
-    refFiles.value.push(f)
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      refPreviews.value.push((e.target?.result as string) || '')
-    }
-    reader.readAsDataURL(f)
+  const remaining = 1 - refFiles.value.length
+  if (remaining <= 0 || newFiles.length === 0) return
+
+  const [toAdd] = newFiles
+  refFiles.value = [toAdd]
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    refPreviews.value = [(e.target?.result as string) || '']
   }
+  reader.readAsDataURL(toAdd)
 }
 
 function onFileChange(e: Event) {
