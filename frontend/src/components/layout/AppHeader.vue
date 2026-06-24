@@ -26,6 +26,18 @@
         <!-- Announcement Bell -->
         <AnnouncementBell v-if="user" />
 
+        <!-- Infinite Canvas Link -->
+        <a
+          v-if="user"
+          href="https://huabu.bayunzi.shop/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-violet-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-violet-400 dark:hover:bg-violet-900/20 dark:hover:text-violet-300"
+        >
+          <Icon name="grid" size="sm" />
+          <span class="hidden sm:inline">{{ t('nav.infiniteCanvas') }}</span>
+        </a>
+
         <!-- Docs Link -->
         <a
           v-if="docUrl"

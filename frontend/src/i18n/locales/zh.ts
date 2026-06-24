@@ -349,6 +349,7 @@ export default {
   nav: {
     dashboard: '仪表盘',
     announcements: '公告',
+    infiniteCanvas: '无限画布',
     apiKeys: 'API 密钥',
     aiModels: '模型查询',
     aiPrompt: 'AI 提示词',

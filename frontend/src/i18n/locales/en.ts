@@ -349,6 +349,7 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     announcements: 'Announcements',
+    infiniteCanvas: 'Infinite Canvas',
     apiKeys: 'API Keys',
     aiModels: 'Model Explorer',
     aiPrompt: 'AI Prompt',
