@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -291,10 +292,9 @@ func (s *OpenAIGatewayService) forwardOpenAIVideosGeneration(
 		UpstreamModel:   upstreamModel,
 		ResponseHeaders: resp.Header.Clone(),
 		Duration:        time.Since(startTime),
-		ImageCount:      1,
-		ImageSize:       normalizeOpenAIVideoResolutionTier(parsed.Resolution),
-		ImageInputSize:  strings.TrimSpace(parsed.Resolution),
-		ImageOutputSize: strings.TrimSpace(parsed.Resolution),
+		VideoStatus:     "queued",
+		VideoTerminal:   false,
+		VideoSucceeded:  false,
 	}, nil
 }
 
@@ -332,9 +332,13 @@ func (s *OpenAIGatewayService) forwardOpenAIVideosStatus(
 		}
 	}
 	c.Data(resp.StatusCode, contentType, body)
+	status := normalizeOpenAIVideoStatus(gjson.GetBytes(body, "status").String())
 	return &OpenAIForwardResult{
 		RequestID:       parsed.RequestID,
 		ResponseHeaders: resp.Header.Clone(),
+		VideoStatus:     status,
+		VideoTerminal:   isOpenAIVideoTerminalStatus(status),
+		VideoSucceeded:  isOpenAIVideoSuccessStatus(status, body),
 	}, nil
 }
 
@@ -610,4 +614,182 @@ func normalizeOpenAIVideoResolutionTier(resolution string) string {
 	default:
 		return ImageBillingSize2K
 	}
+}
+
+func NormalizeOpenAIVideoResolutionTierForUsage(resolution string) string {
+	return normalizeOpenAIVideoResolutionTier(resolution)
+}
+
+func normalizeOpenAIVideoStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
+}
+
+func isOpenAIVideoTerminalStatus(status string) bool {
+	switch normalizeOpenAIVideoStatus(status) {
+	case "completed", "succeeded", "failed", "cancelled", "canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+func isOpenAIVideoSuccessStatus(status string, body []byte) bool {
+	normalized := normalizeOpenAIVideoStatus(status)
+	switch normalized {
+	case "completed", "succeeded":
+		return true
+	}
+	if normalized != "" {
+		return false
+	}
+	videoURL := strings.TrimSpace(gjson.GetBytes(body, "video.url").String())
+	if videoURL == "" {
+		videoURL = strings.TrimSpace(gjson.GetBytes(body, "data.0.url").String())
+	}
+	return videoURL != ""
+}
+
+func openAIVideoPendingSessionHash(requestID string) string {
+	return HashUsageRequestPayload([]byte("openai-video-pending|" + strings.TrimSpace(requestID)))
+}
+
+func encodeOpenAIVideoPendingUsage(model string, resolution string) (int64, bool) {
+	trimmedModel := strings.ToLower(strings.TrimSpace(model))
+	if trimmedModel == "" {
+		return 0, false
+	}
+	trimmedResolution := strings.ToLower(strings.TrimSpace(resolution))
+	if trimmedResolution == "" {
+		trimmedResolution = inferOpenAIVideoResolutionFromModel(trimmedModel)
+	}
+	versionCode, ok := parseOpenAIVideoVersionCode(trimmedModel)
+	if !ok {
+		return 0, false
+	}
+	resolutionCode, ok := parseOpenAIVideoResolutionCode(trimmedResolution)
+	if !ok {
+		return 0, false
+	}
+	return int64(versionCode)*10000 + int64(resolutionCode), true
+}
+
+func decodeOpenAIVideoPendingUsage(encoded int64) (model string, resolution string, ok bool) {
+	if encoded <= 0 {
+		return "", "", false
+	}
+	versionCode := int(encoded / 10000)
+	resolutionCode := int(encoded % 10000)
+	resolution, ok = formatOpenAIVideoResolutionCode(resolutionCode)
+	if !ok {
+		return "", "", false
+	}
+	version, ok := formatOpenAIVideoVersionCode(versionCode)
+	if !ok {
+		return "", "", false
+	}
+	return "grok-imagine-video-" + version + "-" + resolution, resolution, true
+}
+
+func inferOpenAIVideoResolutionFromModel(model string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(model))
+	switch {
+	case strings.HasSuffix(trimmed, "-480p"):
+		return "480p"
+	case strings.HasSuffix(trimmed, "-720p"):
+		return "720p"
+	case strings.HasSuffix(trimmed, "-1080p"):
+		return "1080p"
+	default:
+		return ""
+	}
+}
+
+func parseOpenAIVideoVersionCode(model string) (int, bool) {
+	trimmed := strings.ToLower(strings.TrimSpace(model))
+	const prefix = "grok-imagine-video-"
+	if !strings.HasPrefix(trimmed, prefix) {
+		return 0, false
+	}
+	remainder := strings.TrimPrefix(trimmed, prefix)
+	idx := strings.LastIndex(remainder, "-")
+	if idx <= 0 {
+		return 0, false
+	}
+	version := remainder[:idx]
+	parts := strings.SplitN(version, ".", 2)
+	major, err := strconv.Atoi(parts[0])
+	if err != nil || major < 0 {
+		return 0, false
+	}
+	minor := 0
+	if len(parts) == 2 {
+		minor, err = strconv.Atoi(parts[1])
+		if err != nil || minor < 0 || minor > 99 {
+			return 0, false
+		}
+	}
+	return major*100 + minor, true
+}
+
+func formatOpenAIVideoVersionCode(code int) (string, bool) {
+	if code <= 0 {
+		return "", false
+	}
+	major := code / 100
+	minor := code % 100
+	if minor == 0 {
+		return strconv.Itoa(major), true
+	}
+	return fmt.Sprintf("%d.%d", major, minor), true
+}
+
+func parseOpenAIVideoResolutionCode(resolution string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "480p":
+		return 480, true
+	case "720p":
+		return 720, true
+	case "1080p":
+		return 1080, true
+	default:
+		return 0, false
+	}
+}
+
+func formatOpenAIVideoResolutionCode(code int) (string, bool) {
+	switch code {
+	case 480, 720, 1080:
+		return fmt.Sprintf("%dp", code), true
+	default:
+		return "", false
+	}
+}
+
+func (s *OpenAIGatewayService) BindOpenAIVideoPendingUsage(ctx context.Context, groupID *int64, requestID string, model string, resolution string) error {
+	if s == nil || s.cache == nil {
+		return nil
+	}
+	encoded, ok := encodeOpenAIVideoPendingUsage(model, resolution)
+	if !ok {
+		return nil
+	}
+	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), openAIVideoPendingSessionHash(requestID), encoded, stickySessionTTL)
+}
+
+func (s *OpenAIGatewayService) GetOpenAIVideoPendingUsage(ctx context.Context, groupID *int64, requestID string) (model string, resolution string, ok bool) {
+	if s == nil || s.cache == nil {
+		return "", "", false
+	}
+	encoded, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), openAIVideoPendingSessionHash(requestID))
+	if err != nil || encoded <= 0 {
+		return "", "", false
+	}
+	return decodeOpenAIVideoPendingUsage(encoded)
+}
+
+func (s *OpenAIGatewayService) DeleteOpenAIVideoPendingUsage(ctx context.Context, groupID *int64, requestID string) error {
+	if s == nil || s.cache == nil {
+		return nil
+	}
+	return s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), openAIVideoPendingSessionHash(requestID))
 }

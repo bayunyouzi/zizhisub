@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
@@ -297,38 +298,75 @@ func (h *OpenAIGatewayHandler) Videos(c *gin.Context) {
 			_ = h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, openAIVideoStatusSessionHash(result.RequestID), account.ID)
 		}
 
-		if !isStatusRequest && result != nil {
-			userAgent := c.GetHeader("User-Agent")
-			clientIP := ip.GetClientIP(c)
-			requestPayloadHash := service.HashUsageRequestPayload(body)
-			inboundEndpoint := GetInboundEndpoint(c)
-			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-			upstreamModel := result.UpstreamModel
-			h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
-				if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
-					Result:             result,
-					APIKey:             apiKey,
-					User:               apiKey.User,
-					Account:            account,
-					Subscription:       subscription,
-					InboundEndpoint:    inboundEndpoint,
-					UpstreamEndpoint:   upstreamEndpoint,
-					UserAgent:          userAgent,
-					IPAddress:          clientIP,
-					RequestPayloadHash: requestPayloadHash,
-					APIKeyService:      h.apiKeyService,
-					ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
-				}); err != nil {
-					logger.L().With(
-						zap.String("component", "handler.openai_gateway.videos"),
-						zap.Int64("user_id", subject.UserID),
-						zap.Int64("api_key_id", apiKey.ID),
-						zap.Any("group_id", apiKey.GroupID),
-						zap.String("model", requestModel),
-						zap.Int64("account_id", account.ID),
-					).Error("openai.videos.record_usage_failed", zap.Error(err))
+		if !isStatusRequest && result != nil && result.RequestID != "" {
+			_ = h.gatewayService.BindOpenAIVideoPendingUsage(c.Request.Context(), apiKey.GroupID, result.RequestID, requestModel, parsed.Resolution)
+		}
+
+		if isStatusRequest && result != nil && result.VideoTerminal {
+			deletePending := true
+			if result.VideoSucceeded {
+				pendingModel, pendingResolution, ok := h.gatewayService.GetOpenAIVideoPendingUsage(c.Request.Context(), apiKey.GroupID, parsed.RequestID)
+				if ok {
+					billingModel := pendingModel
+					if billingModel == "" {
+						billingModel = requestModel
+					}
+					billingResolution := pendingResolution
+					if billingResolution == "" {
+						billingResolution = parsed.Resolution
+					}
+					successChannelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, billingModel)
+					upstreamBillingModel := billingModel
+					if mapped := strings.TrimSpace(successChannelMapping.MappedModel); mapped != "" {
+						upstreamBillingModel = mapped
+					}
+					billingResult := &service.OpenAIForwardResult{
+						RequestID:       parsed.RequestID,
+						Model:           billingModel,
+						UpstreamModel:   upstreamBillingModel,
+						ImageCount:      1,
+						ImageSize:       service.NormalizeOpenAIVideoResolutionTierForUsage(billingResolution),
+						ImageInputSize:  strings.TrimSpace(billingResolution),
+						ImageOutputSize: strings.TrimSpace(billingResolution),
+						VideoStatus:     result.VideoStatus,
+						VideoTerminal:   true,
+						VideoSucceeded:  true,
+					}
+					userAgent := c.GetHeader("User-Agent")
+					clientIP := ip.GetClientIP(c)
+					inboundEndpoint := GetInboundEndpoint(c)
+					upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+					channelUsage := successChannelMapping.ToUsageFields(billingModel, upstreamBillingModel)
+					if err := h.gatewayService.RecordUsage(context.Background(), &service.OpenAIRecordUsageInput{
+						Result:             billingResult,
+						APIKey:             apiKey,
+						User:               apiKey.User,
+						Account:            account,
+						Subscription:       subscription,
+						InboundEndpoint:    inboundEndpoint,
+						UpstreamEndpoint:   upstreamEndpoint,
+						UserAgent:          userAgent,
+						IPAddress:          clientIP,
+						RequestPayloadHash: "video-status-success:" + parsed.RequestID,
+						APIKeyService:      h.apiKeyService,
+						ChannelUsageFields: channelUsage,
+					}); err != nil {
+						deletePending = false
+						logger.L().With(
+							zap.String("component", "handler.openai_gateway.videos"),
+							zap.Int64("user_id", subject.UserID),
+							zap.Int64("api_key_id", apiKey.ID),
+							zap.Any("group_id", apiKey.GroupID),
+							zap.String("model", billingModel),
+							zap.String("request_id", parsed.RequestID),
+							zap.Int64("account_id", account.ID),
+						).Error("openai.videos.record_usage_on_terminal_success_failed", zap.Error(err))
+					}
 				}
-			})
+			}
+			if deletePending {
+				_ = h.gatewayService.DeleteOpenAIVideoPendingUsage(c.Request.Context(), apiKey.GroupID, parsed.RequestID)
+			}
 		}
 
 		reqLog.Debug("openai.videos.request_completed",

@@ -244,6 +244,9 @@ type OpenAIForwardResult struct {
 	Duration           time.Duration
 	FirstTokenMs       *int
 	ClientDisconnect   bool
+	VideoStatus        string
+	VideoTerminal      bool
+	VideoSucceeded     bool
 	ImageCount         int
 	ImageSize          string
 	ImageInputSize     string
@@ -5742,6 +5745,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	user := input.User
 	account := input.Account
 	subscription := input.Subscription
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(result.Model)), "grok-imagine-video") && !result.VideoSucceeded {
+		if !result.VideoTerminal {
+			return nil
+		}
+		return nil
+	}
 	ApplyOpenAIImageBillingResolution(result)
 
 	// 计算实际的新输入token（减去缓存读取的token）

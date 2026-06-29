@@ -88,6 +88,37 @@ func TestNormalizeOpenAIVideoResolutionTier(t *testing.T) {
 	require.Equal(t, ImageBillingSize2K, normalizeOpenAIVideoResolutionTier("unknown"))
 }
 
+func TestEncodeDecodeOpenAIVideoPendingUsage(t *testing.T) {
+	encoded, ok := encodeOpenAIVideoPendingUsage("grok-imagine-video-1.5-720p", "720p")
+	require.True(t, ok)
+	require.Greater(t, encoded, int64(0))
+
+	model, resolution, ok := decodeOpenAIVideoPendingUsage(encoded)
+	require.True(t, ok)
+	require.Equal(t, "grok-imagine-video-1.5-720p", model)
+	require.Equal(t, "720p", resolution)
+}
+
+func TestEncodeOpenAIVideoPendingUsage_InferResolutionFromModel(t *testing.T) {
+	encoded, ok := encodeOpenAIVideoPendingUsage("grok-imagine-video-1.5-1080p", "")
+	require.True(t, ok)
+
+	model, resolution, ok := decodeOpenAIVideoPendingUsage(encoded)
+	require.True(t, ok)
+	require.Equal(t, "grok-imagine-video-1.5-1080p", model)
+	require.Equal(t, "1080p", resolution)
+}
+
+func TestOpenAIVideoStatusHelpers(t *testing.T) {
+	require.True(t, isOpenAIVideoTerminalStatus("completed"))
+	require.True(t, isOpenAIVideoTerminalStatus("failed"))
+	require.False(t, isOpenAIVideoTerminalStatus("processing"))
+
+	require.True(t, isOpenAIVideoSuccessStatus("completed", []byte(`{"status":"completed"}`)))
+	require.False(t, isOpenAIVideoSuccessStatus("failed", []byte(`{"status":"failed"}`)))
+	require.True(t, isOpenAIVideoSuccessStatus("", []byte(`{"video":{"url":"https://example.com/video.mp4"}}`)))
+}
+
 func TestAccountSupportsOpenAIEndpointCapabilityVideos(t *testing.T) {
 	apiKeyAccount := &Account{
 		Platform: PlatformOpenAI,

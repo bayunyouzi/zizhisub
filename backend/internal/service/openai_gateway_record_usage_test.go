@@ -243,6 +243,37 @@ func TestOpenAIGatewayServiceRecordUsage_ZeroUsageStillWritesUsageLog(t *testing
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_VideoPendingDoesNotBill(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	quotaSvc := &openAIRecordUsageAPIKeyQuotaStub{}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:      "video_pending_1",
+			Model:          "grok-imagine-video-1.5-720p",
+			VideoStatus:    "processing",
+			VideoTerminal:  false,
+			VideoSucceeded: false,
+		},
+		APIKey:        &APIKey{ID: 1000, Quota: 100, Group: &Group{RateMultiplier: 1}},
+		User:          &User{ID: 2000},
+		Account:       &Account{ID: 3000, Type: AccountTypeAPIKey},
+		APIKeyService: quotaSvc,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, billingRepo.calls)
+	require.Equal(t, 0, usageRepo.calls)
+	require.Equal(t, 0, userRepo.deductCalls)
+	require.Equal(t, 0, subRepo.incrementCalls)
+	require.Equal(t, 0, quotaSvc.quotaCalls)
+	require.Equal(t, 0, quotaSvc.rateLimitCalls)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
