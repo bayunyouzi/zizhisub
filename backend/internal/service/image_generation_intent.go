@@ -10,6 +10,7 @@ const (
 	openAIResponsesEndpoint          = "/v1/responses"
 	openAIResponsesCompactEndpoint   = "/v1/responses/compact"
 	imageGenerationPermissionMessage = "Image generation is not enabled for this group"
+	videoGenerationPermissionMessage = "Video generation is not enabled for this group"
 )
 
 // ImageGenerationPermissionMessage returns the stable end-user error text for disabled groups.
@@ -17,8 +18,16 @@ func ImageGenerationPermissionMessage() string {
 	return imageGenerationPermissionMessage
 }
 
+func VideoGenerationPermissionMessage() string {
+	return videoGenerationPermissionMessage
+}
+
 // GroupAllowsImageGeneration preserves ungrouped-key behavior and enforces the flag when a group is present.
 func GroupAllowsImageGeneration(group *Group) bool {
+	return group == nil || group.AllowImageGeneration
+}
+
+func GroupAllowsVideoGeneration(group *Group) bool {
 	return group == nil || group.AllowImageGeneration
 }
 

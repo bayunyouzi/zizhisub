@@ -77,3 +77,32 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI images handler", path)
 	}
 }
+
+func TestGatewayRoutesOpenAIVideosPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+
+	postPaths := []string{
+		"/v1/videos/generations",
+		"/videos/generations",
+	}
+	for _, path := range postPaths {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok-imagine-video-1.5-720p","prompt":"animate this scene","image":{"url":"https://example.com/source.png"}}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI videos handler", path)
+	}
+
+	getPaths := []string{
+		"/v1/videos/req_video_123",
+		"/videos/req_video_123",
+	}
+	for _, path := range getPaths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI videos handler", path)
+	}
+}
