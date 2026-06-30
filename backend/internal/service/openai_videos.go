@@ -333,12 +333,13 @@ func (s *OpenAIGatewayService) forwardOpenAIVideosStatus(
 	}
 	c.Data(resp.StatusCode, contentType, body)
 	status := normalizeOpenAIVideoStatus(gjson.GetBytes(body, "status").String())
+	videoSucceeded := isOpenAIVideoSuccessStatus(status, body)
 	return &OpenAIForwardResult{
 		RequestID:       parsed.RequestID,
 		ResponseHeaders: resp.Header.Clone(),
 		VideoStatus:     status,
-		VideoTerminal:   isOpenAIVideoTerminalStatus(status),
-		VideoSucceeded:  isOpenAIVideoSuccessStatus(status, body),
+		VideoTerminal:   determineOpenAIVideoTerminalStatus(status, body),
+		VideoSucceeded:  videoSucceeded,
 	}, nil
 }
 
@@ -626,7 +627,7 @@ func normalizeOpenAIVideoStatus(status string) string {
 
 func isOpenAIVideoTerminalStatus(status string) bool {
 	switch normalizeOpenAIVideoStatus(status) {
-	case "completed", "succeeded", "failed", "cancelled", "canceled":
+	case "completed", "succeeded", "success", "failed", "cancelled", "canceled":
 		return true
 	default:
 		return false
@@ -636,7 +637,7 @@ func isOpenAIVideoTerminalStatus(status string) bool {
 func isOpenAIVideoSuccessStatus(status string, body []byte) bool {
 	normalized := normalizeOpenAIVideoStatus(status)
 	switch normalized {
-	case "completed", "succeeded":
+	case "completed", "succeeded", "success":
 		return true
 	}
 	if normalized != "" {
@@ -647,6 +648,13 @@ func isOpenAIVideoSuccessStatus(status string, body []byte) bool {
 		videoURL = strings.TrimSpace(gjson.GetBytes(body, "data.0.url").String())
 	}
 	return videoURL != ""
+}
+
+func determineOpenAIVideoTerminalStatus(status string, body []byte) bool {
+	if isOpenAIVideoTerminalStatus(status) {
+		return true
+	}
+	return isOpenAIVideoSuccessStatus(status, body)
 }
 
 func openAIVideoPendingSessionHash(requestID string) string {

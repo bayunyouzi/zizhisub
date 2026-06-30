@@ -111,12 +111,19 @@ func TestEncodeOpenAIVideoPendingUsage_InferResolutionFromModel(t *testing.T) {
 
 func TestOpenAIVideoStatusHelpers(t *testing.T) {
 	require.True(t, isOpenAIVideoTerminalStatus("completed"))
+	require.True(t, isOpenAIVideoTerminalStatus("success"))
 	require.True(t, isOpenAIVideoTerminalStatus("failed"))
 	require.False(t, isOpenAIVideoTerminalStatus("processing"))
 
 	require.True(t, isOpenAIVideoSuccessStatus("completed", []byte(`{"status":"completed"}`)))
+	require.True(t, isOpenAIVideoSuccessStatus("success", []byte(`{"status":"success"}`)))
 	require.False(t, isOpenAIVideoSuccessStatus("failed", []byte(`{"status":"failed"}`)))
 	require.True(t, isOpenAIVideoSuccessStatus("", []byte(`{"video":{"url":"https://example.com/video.mp4"}}`)))
+
+	require.True(t, determineOpenAIVideoTerminalStatus("completed", []byte(`{"status":"completed"}`)))
+	require.True(t, determineOpenAIVideoTerminalStatus("success", []byte(`{"status":"success"}`)))
+	require.True(t, determineOpenAIVideoTerminalStatus("", []byte(`{"video":{"url":"https://example.com/video.mp4"}}`)))
+	require.False(t, determineOpenAIVideoTerminalStatus("processing", []byte(`{"status":"processing"}`)))
 }
 
 func TestAccountSupportsOpenAIEndpointCapabilityVideos(t *testing.T) {
